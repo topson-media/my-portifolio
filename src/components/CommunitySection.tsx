@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, Lock, CheckCircle2, ChevronLeft, ChevronRight, Quote, ThumbsUp, MessageSquare, CornerDownRight, Send, Heart, User as UserIcon } from 'lucide-react';
+import { Star, Lock, CheckCircle2, ChevronLeft, ChevronRight, Quote, ThumbsUp, MessageSquare, CornerDownRight, Send, Heart, User as UserIcon, Trash2 } from 'lucide-react';
 import { FeedbackItem, FeedbackReply, User } from '../types';
 
 interface CommunitySectionProps {
@@ -9,6 +9,7 @@ interface CommunitySectionProps {
   onSubmitFeedback: (item: FeedbackItem) => void;
   onToggleLikeFeedback?: (feedbackId: string) => void;
   onAddReplyFeedback?: (feedbackId: string, reply: FeedbackReply) => void;
+  onDeleteFeedback?: (feedbackId: string) => void;
   isStandalonePage?: boolean;
 }
 
@@ -19,15 +20,23 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({
   onSubmitFeedback,
   onToggleLikeFeedback,
   onAddReplyFeedback,
+  onDeleteFeedback,
   isStandalonePage = false,
 }) => {
-  const [name, setName] = useState<string>(currentUser?.username || '');
+  const [name, setName] = useState<string>(currentUser?.username ?? '');
   const [role, setRole] = useState<string>('');
   const [rating, setRating] = useState<number>(5);
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [message, setMessage] = useState<string>('');
   const [submitted, setSubmitted] = useState<boolean>(false);
   const [activeIndex, setActiveIndex] = useState<number>(0);
+
+  // Sync author name if currentUser changes (e.g. login/logout)
+  React.useEffect(() => {
+    if (currentUser?.username) {
+      setName(currentUser.username);
+    }
+  }, [currentUser?.username]);
 
   // Local state for replying to the current feedback
   const [replyText, setReplyText] = useState<string>('');
@@ -136,7 +145,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({
           
           {/* Column 1 (7 cols): THE UNIFIED REVIEWS CARD WITH OVER-CONTENT ICONS & REPLIES */}
           <div className="lg:col-span-7">
-            <div className="rounded-3xl p-6 sm:p-8 bg-white border border-neutral-200 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[460px]">
+            <div className="rounded-3xl p-6 sm:p-8 bg-white border border-neutral-200 shadow-sm relative overflow-hidden flex flex-col justify-between h-auto transition-all duration-300">
               
               <div>
                 {/* 1. Card Header: User Who Sent Feedback PROMINENTLY VISIBLE */}
@@ -200,8 +209,8 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({
                   </div>
                 </div>
 
-                {/* 2. FEEDBACK ICONS OVER THE FEEDBACK CONTENTS */}
-                <div className="pt-4 pb-2 flex items-center justify-between gap-3">
+                {/* 2. FEEDBACK ICONS OVER THE FEEDBACK CONTENTS (Separated from quote icon) */}
+                <div className="pt-4 pb-2 flex items-center justify-between gap-3 relative z-10">
                   <div className="flex items-center gap-2">
                     {/* Like / Unlike Button */}
                     <button
@@ -235,6 +244,26 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({
                       <span>{replies.length}</span>
                       <span className="hidden xs:inline">Replies</span>
                     </button>
+
+                    {/* Admin Delete Feedback Action */}
+                    {currentUser?.role === 'admin' && onDeleteFeedback && currentFeedback && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`Delete review from "${currentFeedback.authorName}"?`)) {
+                            onDeleteFeedback(currentFeedback.id);
+                            if (activeIndex > 0) {
+                              setActiveIndex(activeIndex - 1);
+                            }
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition-colors cursor-pointer"
+                        title="Delete feedback (Admin only)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden xs:inline">Delete Review</span>
+                      </button>
+                    )}
                   </div>
 
                   <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
@@ -242,10 +271,10 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({
                   </span>
                 </div>
 
-                {/* 3. Feedback Body Content */}
-                <div className="py-4 relative">
-                  <Quote className="w-8 h-8 text-neutral-200 absolute top-2 left-0 -z-0 pointer-events-none" />
-                  <p className="text-base sm:text-lg text-neutral-800 leading-relaxed italic relative z-10 pl-2 font-medium">
+                {/* 3. Feedback Body Content: Watermarked quote in upper-right background so it never collides with buttons */}
+                <div className="pt-4 pb-3 relative min-h-[90px]">
+                  <Quote className="w-10 h-10 text-neutral-100 absolute top-2 right-1 -z-0 pointer-events-none select-none opacity-80" />
+                  <p className="text-base sm:text-lg text-neutral-800 leading-relaxed italic relative z-10 font-medium break-words">
                     &ldquo;{currentFeedback?.content}&rdquo;
                   </p>
                 </div>
@@ -422,7 +451,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({
                       <input
                         type="text"
                         required
-                        value={name}
+                        value={name ?? ''}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="Your name"
                         className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
@@ -436,7 +465,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({
                       </label>
                       <input
                         type="text"
-                        value={role}
+                        value={role ?? ''}
                         onChange={(e) => setRole(e.target.value)}
                         placeholder="e.g. Android User, Student, Developer"
                         className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
@@ -451,7 +480,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({
                       <textarea
                         required
                         rows={3}
-                        value={message}
+                        value={message ?? ''}
                         onChange={(e) => setMessage(e.target.value)}
                         placeholder="Write your review..."
                         className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"

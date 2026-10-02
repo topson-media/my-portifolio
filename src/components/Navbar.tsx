@@ -50,11 +50,31 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   const navItems: { label: string; id: NavSection; icon: React.ReactNode }[] = [
-    { label: 'Home', id: 'home', icon: <Home className="w-3.5 h-3.5" /> },
-    { label: 'Tutorials', id: 'tutorials', icon: <Film className="w-3.5 h-3.5" /> },
-    { label: 'Community', id: 'community', icon: <Users className="w-3.5 h-3.5" /> },
-    { label: 'Live Chat', id: 'chat', icon: <MessageSquare className="w-3.5 h-3.5" /> },
-    { label: 'Contact', id: 'contact', icon: <Mail className="w-3.5 h-3.5" /> },
+    {
+      label: 'Home',
+      id: 'home',
+      icon: <Home className="w-3.5 h-3.5 text-cyan-600 transition-colors" />,
+    },
+    {
+      label: 'Tutorials',
+      id: 'tutorials',
+      icon: <Film className="w-3.5 h-3.5 text-orange-500 transition-colors" />,
+    },
+    {
+      label: 'Community',
+      id: 'community',
+      icon: <Users className="w-3.5 h-3.5 text-purple-600 transition-colors" />,
+    },
+    {
+      label: 'Live Chat',
+      id: 'chat',
+      icon: <MessageSquare className="w-3.5 h-3.5 text-blue-500 transition-colors" />,
+    },
+    {
+      label: 'Contact',
+      id: 'contact',
+      icon: <Mail className="w-3.5 h-3.5 text-amber-500 transition-colors" />,
+    },
   ];
 
   return (
@@ -133,7 +153,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="nav-search-input"
                 ref={searchInputRef}
                 type="text"
-                value={searchQuery}
+                value={searchQuery ?? ''}
                 onFocus={() => setIsSearchFocused(true)}
                 onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
                 onChange={(e) => {
@@ -175,24 +195,42 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* User Auth / Admin Account */}
           {currentUser ? (
-            <div className="flex items-center gap-1.5 pl-1.5 border-l border-neutral-200">
+            <div className="flex items-center gap-2 pl-2 border-l border-neutral-200">
               <div
-                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-white font-bold text-xs bg-neutral-900"
+                className="w-8 h-8 rounded-full overflow-hidden border border-neutral-300 bg-white shrink-0 flex items-center justify-center shadow-2xs"
                 title={currentUser.role === 'admin' ? 'Admin: Topson Media' : currentUser.username}
               >
-                {currentUser.username.slice(0, 1).toUpperCase()}
+                {currentUser.avatarUrl ? (
+                  <img
+                    src={currentUser.avatarUrl}
+                    alt={currentUser.username}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-neutral-900 text-white font-bold text-xs flex items-center justify-center">
+                    {currentUser.username.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
               </div>
-              <span className="hidden xl:inline-block text-xs font-bold text-neutral-900 max-w-[90px] truncate">
-                {currentUser.username}
-              </span>
+              <div className="hidden xl:flex flex-col text-left max-w-[100px]">
+                <span className="text-xs font-bold text-neutral-900 truncate">
+                  {currentUser.username}
+                </span>
+                {currentUser.role === 'admin' && (
+                  <span className="text-[9px] uppercase tracking-wider font-extrabold text-orange-600 -mt-0.5">
+                    Admin
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={onLogout}
                 title="Sign out"
-                className="p-1 text-neutral-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
+                className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
                 aria-label="Sign out"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <LogOut className="w-4 h-4" />
               </button>
             </div>
           ) : (

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Send, CheckCircle2, Mail, MessageSquare, Clock, Zap, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { Send, CheckCircle2, Mail, MessageSquare, Clock, Zap, ArrowRight, ShieldCheck, Sparkles, Phone } from 'lucide-react';
+import { EmailMessage } from '../types';
 
 interface ContactSectionProps {
   onJumpToChat: () => void;
+  onSendMessageToAdmin?: (message: EmailMessage) => void;
 }
 
-export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat }) => {
+export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat, onSendMessageToAdmin }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [subject, setSubject] = useState('Question & Tutorial Request');
@@ -15,6 +17,20 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat }) 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim() || !message.trim()) return;
+
+    const emailMsg: EmailMessage = {
+      id: 'email-' + Date.now(),
+      senderName: name.trim(),
+      senderEmail: email.trim(),
+      subject: subject.trim(),
+      message: message.trim(),
+      timestamp: 'Just now',
+      replies: [],
+    };
+
+    if (onSendMessageToAdmin) {
+      onSendMessageToAdmin(emailMsg);
+    }
 
     setSent(true);
     setTimeout(() => {
@@ -55,56 +71,84 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat }) 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
           
           {/* Left Column (5 cols): Organized Channels & Quick Cards */}
-          <div className="lg:col-span-5 space-y-4">
+          <div className="lg:col-span-5 space-y-3">
             
             {/* Card 1: Direct Email Channel */}
-            <div className="p-6 rounded-3xl bg-neutral-50 border border-neutral-200 shadow-2xs hover:border-orange-500/40 transition-all group">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-white border border-neutral-200 flex items-center justify-center text-orange-500 shadow-2xs group-hover:scale-105 transition-transform shrink-0">
-                  <Mail className="w-6 h-6" />
+            <div className="p-4 sm:p-5 rounded-2xl bg-neutral-50 border border-neutral-200/90 shadow-2xs hover:border-orange-500/40 transition-all group">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-white border border-neutral-200 flex items-center justify-center text-orange-500 shadow-2xs group-hover:scale-105 transition-transform shrink-0">
+                  <Mail className="w-5 h-5" />
                 </div>
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
                     Direct Email
                   </div>
                   <a
-                    href="mailto:hello@topsonmedia.com"
-                    className="text-base sm:text-lg font-black text-neutral-900 hover:text-orange-600 transition-colors block mt-0.5"
+                    href="mailto:topsonkenedy@gmail.com"
+                    className="text-sm sm:text-base font-bold text-neutral-900 hover:text-orange-600 transition-colors block"
+                    title="Click to achieve inbox and mail Topson Media"
                   >
-                    hello@topsonmedia.com
+                    mail topson media
                   </a>
-                  <p className="text-xs text-neutral-600 mt-1 font-medium leading-relaxed">
-                    Personal inbox monitored daily for video suggestions, tech problem questions, and inquiries.
+                  <p className="text-[11px] text-neutral-600 mt-0.5 leading-snug font-medium">
+                    Personal inbox checked daily for questions & suggestions.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Card 2: Interactive Live Chat Shortcut */}
-            <div className="p-6 rounded-3xl bg-neutral-50 border border-neutral-200 shadow-2xs hover:border-orange-500/40 transition-all group">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-white border border-neutral-200 flex items-center justify-center text-neutral-900 shadow-2xs group-hover:scale-105 transition-transform shrink-0">
-                  <MessageSquare className="w-6 h-6 text-orange-500" />
+            {/* Card 2: WhatsApp & Direct Phone */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-neutral-50 border border-neutral-200/90 shadow-2xs hover:border-emerald-500/40 transition-all group">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-[#25D366] flex items-center justify-center text-white shadow-2xs group-hover:scale-105 transition-transform shrink-0">
+                  <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
+                    <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.669-.699c.983.538 1.848.814 2.791.814 3.182 0 5.768-2.587 5.769-5.766.001-3.182-2.585-5.8-5.77-5.8zm3.385 8.214c-.141.398-.718.73-1.009.774-.282.043-.645.068-1.047-.061-.403-.129-.929-.304-1.603-.601-1.396-.615-2.3-2.029-2.37-2.122-.07-.093-.568-.756-.568-1.442 0-.685.358-1.022.486-1.163.128-.141.28-.176.374-.176.094 0 .188.001.27.006.088.005.205-.033.32.245.118.283.403.985.438 1.057.036.071.059.155.012.248-.047.094-.07.153-.14.236-.07.082-.149.183-.212.246-.071.07-.145.146-.062.289.083.142.368.608.79 0.984.544.485 1.003.636 1.145.706.142.071.225.059.309-.035.083-.094.356-.414.451-.556.094-.141.189-.118.318-.071.129.047.82.386.961.457.142.07.236.106.271.165.035.059.035.341-.106.739zM12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.66 1.434 5.176L2 22l4.957-1.399C8.423 21.493 10.155 22 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" />
+                  </svg>
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                    WhatsApp & Phone
+                  </div>
+                  <a
+                    href="https://play.google.com/store/apps/details?id=com.whatsapp"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm sm:text-base font-bold text-neutral-900 hover:text-emerald-600 transition-colors block"
+                  >
+                    0794903078
+                  </a>
+                  <p className="text-[11px] text-neutral-600 mt-0.5 leading-snug font-medium">
+                    Fast messaging & calling for tech advice.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Interactive Live Chat Shortcut */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-neutral-50 border border-neutral-200/90 shadow-2xs hover:border-orange-500/40 transition-all group">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-white border border-neutral-200 flex items-center justify-center text-orange-500 shadow-2xs group-hover:scale-105 transition-transform shrink-0">
+                  <MessageSquare className="w-5 h-5 text-orange-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1.5 mb-0.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
                       Real-time Option
                     </span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                    <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
                       Instant
                     </span>
                   </div>
-                  <h4 className="text-base font-bold text-neutral-900 mt-0.5">
+                  <h4 className="text-sm sm:text-base font-bold text-neutral-900">
                     Jump into Live Chat
                   </h4>
-                  <p className="text-xs text-neutral-600 mt-1 font-medium leading-relaxed mb-3">
-                    Chat directly with Topson Media in the studio room above with fast responses.
+                  <p className="text-[11px] text-neutral-600 mt-0.5 mb-2 leading-snug font-medium">
+                    Chat directly with Topson Media in the studio room.
                   </p>
                   <button
                     type="button"
                     onClick={onJumpToChat}
-                    className="inline-flex items-center gap-2 text-xs font-bold text-neutral-900 hover:text-orange-600 cursor-pointer transition-colors"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-neutral-900 hover:text-orange-600 cursor-pointer transition-colors"
                   >
                     <span>Open chat studio</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -170,7 +214,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat }) 
                       <input
                         type="text"
                         required
-                        value={name}
+                        value={name ?? ''}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="Alex Morgan"
                         className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors shadow-2xs"
@@ -184,7 +228,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat }) 
                       <input
                         type="email"
                         required
-                        value={email}
+                        value={email ?? ''}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="alex@example.com"
                         className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors shadow-2xs"
@@ -198,7 +242,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat }) 
                       Subject Topic
                     </label>
                     <select
-                      value={subject}
+                      value={subject ?? 'Question & Tutorial Request'}
                       onChange={(e) => setSubject(e.target.value)}
                       className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors shadow-2xs cursor-pointer"
                     >
@@ -218,7 +262,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat }) 
                     <textarea
                       required
                       rows={4}
-                      value={message}
+                      value={message ?? ''}
                       onChange={(e) => setMessage(e.target.value)}
                       placeholder="Describe your tech issue, question, or tutorial request in detail..."
                       className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors shadow-2xs"

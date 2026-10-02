@@ -57,3 +57,25 @@ export interface VideoItem {
   description: string;
   tags: string[];
 }
+
+export interface EmailMessage {
+  id: string;
+  senderName: string;
+  senderEmail: string;
+  subject: string;
+  message: string;
+  timestamp: string;
+  replies?: {
+    id: string;
+    text: string;
+    timestamp: string;
+  }[];
+}
+
+export interface VisitorActivity {
+  id: string;
+  type: 'visit' | 'watch' | 'comment' | 'chat' | 'email';
+  description: string;
+  timestamp: string;
+  userIpOrName?: string;
+}

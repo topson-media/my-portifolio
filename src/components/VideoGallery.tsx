@@ -572,7 +572,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                       <input
                         type="url"
                         required
-                        value={videoLink}
+                        value={videoLink ?? ''}
                         onChange={(e) => setVideoLink(e.target.value)}
                         placeholder="https://youtube.com/watch?v=..."
                         className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
@@ -609,7 +609,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                     <input
                       type="text"
                       required
-                      value={newTitle}
+                      value={newTitle ?? ''}
                       onChange={(e) => setNewTitle(e.target.value)}
                       placeholder="Title of tutorial"
                       className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
@@ -623,7 +623,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                         Category
                       </label>
                       <select
-                        value={newCategory}
+                        value={newCategory ?? 'Dev Workflows'}
                         onChange={(e) => setNewCategory(e.target.value as any)}
                         className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900"
                       >
@@ -639,7 +639,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                       </label>
                       <input
                         type="text"
-                        value={newDuration}
+                        value={newDuration ?? ''}
                         onChange={(e) => setNewDuration(e.target.value)}
                         placeholder="10:00"
                         className="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900"
@@ -654,7 +654,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                     </label>
                     <textarea
                       rows={2}
-                      value={newDescription}
+                      value={newDescription ?? ''}
                       onChange={(e) => setNewDescription(e.target.value)}
                       placeholder="Brief walkthrough summary"
                       className="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900 resize-none"

@@ -385,7 +385,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
                 return (
                   <div
                     key={msg.id}
-                    className={`flex gap-3 items-start ${
+                    className={`flex gap-3 items-start max-w-[85%] sm:max-w-[75%] md:max-w-[70%] ${
                       isTopson ? 'mr-auto justify-start' : 'ml-auto flex-row-reverse justify-start'
                     }`}
                   >
@@ -407,8 +407,8 @@ export const LiveChat: React.FC<LiveChatProps> = ({
                       )}
                     </div>
 
-                    {/* Bubble Column: Compact w-fit with controlled max-width */}
-                    <div className={`flex flex-col w-fit max-w-[260px] xs:max-w-[320px] sm:max-w-[380px] md:max-w-[440px] relative group ${
+                    {/* Bubble Column: Fixed max-w-[70%] / max-w-md, min-w-0 to prevent horizontal flex overflow */}
+                    <div className={`flex flex-col w-fit max-w-full md:max-w-md min-w-0 relative group ${
                       isTopson ? 'items-start' : 'items-end'
                     }`}>
                       {/* Top: Sender Name and Host Tag (Aligned horizontally with top of avatar) */}
@@ -424,7 +424,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
                       </div>
 
                       {/* Bubble content: Press & hold to delete/unsend on user messages */}
-                      <div className="relative flex items-center gap-1">
+                      <div className="relative flex items-center gap-1 max-w-full min-w-0">
                         {!isTopson && (
                           <button
                             type="button"
@@ -432,7 +432,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
                               setSelectedMessageForAction(msg);
                               setShowDeleteModal(true);
                             }}
-                            className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 text-neutral-400 hover:text-red-600 rounded-lg hover:bg-neutral-100 cursor-pointer"
+                            className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 text-neutral-400 hover:text-red-600 rounded-lg hover:bg-neutral-100 cursor-pointer shrink-0"
                             title="Unsend / Delete message"
                             aria-label="Unsend or delete message"
                           >
@@ -447,7 +447,12 @@ export const LiveChat: React.FC<LiveChatProps> = ({
                           onTouchStart={() => !isTopson && handleTouchStart(msg)}
                           onTouchEnd={handleTouchEnd}
                           onTouchCancel={handleTouchEnd}
-                          className={`inline-block w-fit px-4 py-2.5 sm:px-4 sm:py-3 rounded-2xl text-xs sm:text-sm leading-relaxed break-words whitespace-pre-wrap text-left shadow-2xs select-none transition-transform active:scale-[0.98] ${
+                          style={{
+                            wordBreak: 'break-word',
+                            overflowWrap: 'anywhere',
+                            whiteSpace: 'pre-wrap',
+                          }}
+                          className={`inline-block w-fit max-w-full px-4 py-2.5 sm:px-4 sm:py-3 rounded-2xl text-xs sm:text-sm leading-relaxed break-words [word-break:break-word] [overflow-wrap:anywhere] whitespace-pre-wrap text-left shadow-2xs select-none transition-transform active:scale-[0.98] ${
                             isTopson
                               ? 'bg-neutral-100 text-neutral-900 rounded-tl-xs border border-neutral-200/90 font-medium'
                               : 'bg-slate-100 text-slate-900 rounded-tr-xs border border-slate-200/80 font-medium cursor-pointer hover:bg-slate-100/90'
@@ -455,14 +460,14 @@ export const LiveChat: React.FC<LiveChatProps> = ({
                         >
                           {/* 5. WELCOME TEXT ANIMATION (Typewriter letter-by-letter on first welcome message) */}
                           {isFirstWelcomeMsg ? (
-                            <span className="break-words">
+                            <span className="break-words [word-break:break-word] [overflow-wrap:anywhere]">
                               {animatedWelcomeText || msg.text}
                               {!isTypewriterDone && (
                                 <span className="inline-block w-1.5 h-3.5 ml-1 bg-orange-500 animate-pulse align-middle" />
                               )}
                             </span>
                           ) : (
-                            <span className="break-words">{msg.text}</span>
+                            <span className="break-words [word-break:break-word] [overflow-wrap:anywhere]">{msg.text}</span>
                           )}
                         </div>
                       </div>
@@ -528,7 +533,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
                   <input
                     ref={inputRef}
                     type="text"
-                    value={inputText}
+                    value={inputText ?? ''}
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder="Type your message..."
                     className="flex-1 px-3.5 py-2.5 text-xs sm:text-sm text-neutral-900 bg-transparent placeholder:text-neutral-400 focus:outline-none"

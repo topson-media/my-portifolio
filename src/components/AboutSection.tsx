@@ -43,36 +43,6 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ onExploreTutorials }
           </div>
         </div>
 
-        {/* Bottom Metrics */}
-        <div className="pt-8 border-t border-neutral-200 grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div>
-            <div className="text-3xl sm:text-4xl font-black text-neutral-900 tabular-nums tracking-tight">
-              50<span className="text-orange-500">+</span>
-            </div>
-            <div className="text-xs font-bold tracking-widest uppercase text-neutral-800 mt-1">
-              PRACTICAL GUIDES
-            </div>
-          </div>
-
-          <div>
-            <div className="text-3xl sm:text-4xl font-black text-neutral-900 tabular-nums tracking-tight">
-              4
-            </div>
-            <div className="text-xs font-bold tracking-widest uppercase text-neutral-800 mt-1">
-              PLATFORMS
-            </div>
-          </div>
-
-          <div>
-            <div className="text-3xl sm:text-4xl font-black text-neutral-900 tracking-tight">
-              100%
-            </div>
-            <div className="text-xs font-bold tracking-widest uppercase text-neutral-800 mt-1">
-              FREE TO LEARN
-            </div>
-          </div>
-        </div>
-
       </div>
     </section>
   );

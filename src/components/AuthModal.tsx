@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Lock, Mail, User as UserIcon, KeyRound, CheckCircle, ShieldCheck } from 'lucide-react';
+import { X, Lock, Mail, User as UserIcon, KeyRound, CheckCircle } from 'lucide-react';
 import { User } from '../types';
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
 
@@ -66,13 +66,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           return;
         }
 
+        const isExplicitAdmin =
+          (email.trim().toLowerCase() === 'topsonkenedy@gmail.com' && password === 'nzayikoreraetsiyene') ||
+          (username.trim().toLowerCase() === 'topsonkenedy' && password === 'nzayikoreraetsiyene') ||
+          (email.trim().toLowerCase() === 'jabsco59@gmail.com' && password === '123456789q');
+
         const newUser: User = {
-          id: 'user-' + Date.now(),
-          username: username.trim(),
+          id: isExplicitAdmin ? 'admin-topson' : 'user-' + Date.now(),
+          username: isExplicitAdmin ? 'Topson Media' : username.trim(),
           email: email.trim(),
-          role: 'member',
-          joinedDate: 'Joined today',
-          avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username.trim())}`,
+          role: isExplicitAdmin ? 'admin' : 'member',
+          joinedDate: isExplicitAdmin ? 'Channel Creator & Admin' : 'Joined today',
+          avatarUrl: isExplicitAdmin
+            ? TOPSON_PROFILE_IMAGE
+            : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username.trim())}`,
         };
 
         setIsSubmitting(false);
@@ -86,14 +93,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           return;
         }
 
-        const isUserAdmin = identifier.toLowerCase() === 'topson' || identifier.toLowerCase() === 'admin';
+        const normalizedIdentifier = identifier.trim().toLowerCase();
+
+        // Check for specific admin credentials requested:
+        // email: topsonkenedy@gmail.com
+        // password: nzayikoreraetsiyene
+        const isTargetAdmin =
+          (normalizedIdentifier === 'topsonkenedy@gmail.com' || normalizedIdentifier === 'topsonkenedy' || normalizedIdentifier === 'topson') &&
+          password === 'nzayikoreraetsiyene';
+
+        // Also preserve jabsco59@gmail.com fallback admin credentials
+        const isJabscoAdmin =
+          (normalizedIdentifier === 'jabsco59@gmail.com' || normalizedIdentifier === 'jabsco59') &&
+          password === '123456789q';
+
+        const isUserAdmin = isTargetAdmin || isJabscoAdmin;
+
         const loggedUser: User = {
-          id: isUserAdmin ? 'admin-1' : 'user-' + Date.now(),
-          username: isUserAdmin ? 'Topson Media' : (identifier.includes('@') ? identifier.split('@')[0] : identifier.trim()),
-          email: isUserAdmin ? 'admin@topsonmedia.com' : (identifier.includes('@') ? identifier.trim() : `${identifier.trim()}@example.com`),
+          id: isUserAdmin ? 'admin-topson' : 'user-' + Date.now(),
+          username: isUserAdmin
+            ? 'Topson Media'
+            : (identifier.includes('@') ? identifier.split('@')[0] : identifier.trim()),
+          email: isUserAdmin
+            ? 'topsonkenedy@gmail.com'
+            : (identifier.includes('@') ? identifier.trim() : `${identifier.trim()}@example.com`),
           role: isUserAdmin ? 'admin' : 'member',
-          joinedDate: isUserAdmin ? 'Channel Creator' : 'Joined today',
-          avatarUrl: isUserAdmin ? TOPSON_PROFILE_IMAGE : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(identifier.trim())}`,
+          joinedDate: isUserAdmin ? 'Channel Creator & Admin' : 'Joined today',
+          avatarUrl: isUserAdmin
+            ? TOPSON_PROFILE_IMAGE
+            : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(identifier.trim())}`,
         };
 
         setIsSubmitting(false);
@@ -101,19 +129,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         onClose();
       }
     }, 400);
-  };
-
-  const handleAdminLogin = () => {
-    const adminUser: User = {
-      id: 'admin-topson',
-      username: 'Topson Media',
-      email: 'admin@topsonmedia.com',
-      role: 'admin',
-      joinedDate: 'Channel Creator & Host',
-      avatarUrl: TOPSON_PROFILE_IMAGE,
-    };
-    onSuccess(adminUser);
-    onClose();
   };
 
   return (
@@ -288,24 +303,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             )}
           </button>
         </form>
-
-        {/* Quick Admin Demo Login Option */}
-        <div className="mt-5 pt-5 border-t border-neutral-100 space-y-2.5">
-          <div className="flex items-center justify-between text-xs text-neutral-600">
-            <span>Instant Admin Access:</span>
-            <span className="text-[11px] text-orange-600 font-bold">1-Click Test</span>
-          </div>
-
-          {/* Admin 1-Click Login Button */}
-          <button
-            type="button"
-            onClick={handleAdminLogin}
-            className="w-full py-2.5 px-3 text-xs font-bold rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-700 border border-orange-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
-          >
-            <ShieldCheck className="w-4 h-4 text-orange-500" />
-            <span>Log in as Topson Media (Admin · Video Upload Rights)</span>
-          </button>
-        </div>
       </div>
     </div>
   );

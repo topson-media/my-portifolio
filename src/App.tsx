@@ -21,7 +21,7 @@ import {
   INITIAL_CHAT_MESSAGES,
   TOPSON_PROFILE_IMAGE,
 } from './data/mockData';
-import { User, FeedbackItem, ChatMessage, VideoItem } from './types';
+import { User, FeedbackItem, ChatMessage, VideoItem, EmailMessage, VisitorActivity } from './types';
 
 export default function App() {
   // Enforce white background on <html>, <body>, and localStorage
@@ -31,11 +31,8 @@ export default function App() {
     localStorage.setItem('topson_theme', 'light');
   }, []);
 
-  // Current view page: 'home' for the full on-page experience, 'admin' for Admin Studio
-  const [currentPage, setCurrentPage] = useState<'home' | 'admin'>(() => {
-    const hash = window.location.hash.replace('#', '').toLowerCase();
-    return hash === 'admin' ? 'admin' : 'home';
-  });
+  // Current view page: always default to 'home' when user opens website
+  const [currentPage, setCurrentPage] = useState<'home' | 'admin'>('home');
 
   // Active section for Scroll-Spy (Home, Tutorials, Community, Live Chat, Contact)
   const [activeNav, setActiveNav] = useState<NavSection>('home');
@@ -95,6 +92,94 @@ export default function App() {
     }
     return INITIAL_FEEDBACKS;
   });
+
+  // Inbound Email Messages to topsonkenedy@gmail.com
+  const [emailMessages, setEmailMessages] = useState<EmailMessage[]>(() => {
+    const saved = localStorage.getItem('topson_email_messages');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return [];
+      }
+    }
+    return [
+      {
+        id: 'msg-seed-1',
+        senderName: 'David Kamanzi',
+        senderEmail: 'david.k@gmail.com',
+        subject: 'Phone Battery Optimization Tutorial Request',
+        message: 'Hello Topson Media, love your phone walkthroughs! Could you do a dedicated video on stopping background battery drain on Android 14? Thank you!',
+        timestamp: '1 hour ago',
+        replies: [],
+      },
+      {
+        id: 'msg-seed-2',
+        senderName: 'Sarah Uwase',
+        senderEmail: 'sarah.u@outlook.com',
+        subject: 'Sponsorship & Studio Setup Inquiry',
+        message: 'Hi Topson! I run a tech accessories brand in East Africa. We would love to collaborate on a setup review video.',
+        timestamp: '3 hours ago',
+        replies: [],
+      }
+    ];
+  });
+
+  // Real-time Visitor & User Traffic Activities
+  const [visitorActivities, setVisitorActivities] = useState<VisitorActivity[]>([
+    {
+      id: 'act-1',
+      type: 'visit',
+      description: 'Visitor opened Topson Media Homepage from Kigali, Rwanda',
+      timestamp: 'Just now',
+      userIpOrName: 'Visitor #4829',
+    },
+    {
+      id: 'act-2',
+      type: 'watch',
+      description: 'Watched "Clean Phone Storage Without Deleting Photos"',
+      timestamp: '2 mins ago',
+      userIpOrName: 'Mobile User (Android)',
+    },
+    {
+      id: 'act-3',
+      type: 'chat',
+      description: 'Engaged with Topson Media in Live Studio Chat',
+      timestamp: '5 mins ago',
+      userIpOrName: 'Eric G.',
+    },
+    {
+      id: 'act-4',
+      type: 'email',
+      description: 'Sent email inquiry to topsonkenedy@gmail.com',
+      timestamp: '1 hour ago',
+      userIpOrName: 'David Kamanzi',
+    },
+    {
+      id: 'act-5',
+      type: 'visit',
+      description: 'Visited YouTube channel via social medias link',
+      timestamp: '2 hours ago',
+      userIpOrName: 'Visitor #4820',
+    },
+  ]);
+
+  const [totalVisitorsCount, setTotalVisitorsCount] = useState<number>(() => {
+    const saved = localStorage.getItem('topson_visitor_count');
+    return saved ? parseInt(saved, 10) : 1248;
+  });
+
+  useEffect(() => {
+    const incremented = sessionStorage.getItem('topson_visited');
+    if (!incremented) {
+      setTotalVisitorsCount((prev) => {
+        const next = prev + 1;
+        localStorage.setItem('topson_visitor_count', next.toString());
+        return next;
+      });
+      sessionStorage.setItem('topson_visited', 'true');
+    }
+  }, []);
 
   // Interactive Live Chat Messages
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
@@ -231,6 +316,89 @@ export default function App() {
     const updated = [newFb, ...feedbacks];
     setFeedbacks(updated);
     localStorage.setItem('topson_feedbacks', JSON.stringify(updated));
+
+    setVisitorActivities((prev) => [
+      {
+        id: 'act-' + Date.now(),
+        type: 'comment',
+        description: `New community review published by "${newFb.authorName}" (${newFb.rating} stars)`,
+        timestamp: 'Just now',
+        userIpOrName: newFb.authorName,
+      },
+      ...prev,
+    ]);
+  };
+
+  // Delete feedback (Admin control)
+  const handleDeleteFeedback = (feedbackId: string) => {
+    const updated = feedbacks.filter((fb) => fb.id !== feedbackId);
+    setFeedbacks(updated);
+    localStorage.setItem('topson_feedbacks', JSON.stringify(updated));
+
+    setVisitorActivities((prev) => [
+      {
+        id: 'act-' + Date.now(),
+        type: 'comment',
+        description: 'Admin deleted a feedback review',
+        timestamp: 'Just now',
+        userIpOrName: 'Admin Control',
+      },
+      ...prev,
+    ]);
+  };
+
+  // Inbound message sent to admin (topsonkenedy@gmail.com)
+  const handleSendMessageToAdmin = (message: EmailMessage) => {
+    const updated = [message, ...emailMessages];
+    setEmailMessages(updated);
+    localStorage.setItem('topson_email_messages', JSON.stringify(updated));
+
+    setVisitorActivities((prev) => [
+      {
+        id: 'act-' + Date.now(),
+        type: 'email',
+        description: `Email inquiry received from "${message.senderName}" (${message.subject})`,
+        timestamp: 'Just now',
+        userIpOrName: message.senderName,
+      },
+      ...prev,
+    ]);
+  };
+
+  // Admin reply to inbound message (will send via email)
+  const handleReplyEmailMessage = (emailId: string, replyText: string) => {
+    setEmailMessages((prev) => {
+      const updated = prev.map((msg) => {
+        if (msg.id === emailId) {
+          const currentReplies = msg.replies || [];
+          return {
+            ...msg,
+            replies: [
+              ...currentReplies,
+              {
+                id: 'rep-' + Date.now(),
+                text: replyText,
+                timestamp: 'Just now',
+              },
+            ],
+          };
+        }
+        return msg;
+      });
+      localStorage.setItem('topson_email_messages', JSON.stringify(updated));
+      return updated;
+    });
+
+    setVisitorActivities((prev) => [
+      {
+        id: 'act-' + Date.now(),
+        type: 'email',
+        description: 'Admin sent email reply to inquirer',
+        timestamp: 'Just now',
+        userIpOrName: 'Topson Media',
+      },
+      ...prev,
+    ]);
   };
 
   // Toggle Like on Feedback Item
@@ -391,6 +559,7 @@ export default function App() {
                 onSubmitFeedback={handleAddFeedback}
                 onToggleLikeFeedback={handleToggleLikeFeedback}
                 onAddReplyFeedback={handleAddReplyFeedback}
+                onDeleteFeedback={handleDeleteFeedback}
               />
 
               {/* Live Chat Section */}
@@ -407,6 +576,7 @@ export default function App() {
               {/* GET IN TOUCH Contact Section */}
               <ContactSection
                 onJumpToChat={() => handleNavClick('chat')}
+                onSendMessageToAdmin={handleSendMessageToAdmin}
               />
             </div>
           ) : (
@@ -416,7 +586,12 @@ export default function App() {
                 currentUser={currentUser}
                 videos={videoList}
                 feedbacks={feedbacks}
+                emailMessages={emailMessages}
+                visitorActivities={visitorActivities}
+                totalVisitorsCount={totalVisitorsCount}
                 onUploadVideo={handleUploadVideo}
+                onDeleteFeedback={handleDeleteFeedback}
+                onReplyEmailMessage={handleReplyEmailMessage}
                 onAdminLogin={() => handleOpenAuth('admin')}
                 onNavigateHome={() => handleNavClick('home')}
               />
