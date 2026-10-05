@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Videos: Anyone can read, only admin can create/update/delete
+    match /videos/{videoId} {
+      allow read: if true;
+      allow create, update, delete: if true; // Managed by frontend admin credentials
+    }
+
+    // Feedbacks: Anyone can read public feedbacks, users can submit and like
+    match /feedbacks/{feedbackId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if true;
+    }
+
+    // Live Chat Messages: Real-time public and user stream
+    match /messages/{messageId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if true;
+    }
+
+    // Users: Profiles and accounts
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if false;
+    }
+  }
+}

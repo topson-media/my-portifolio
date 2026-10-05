@@ -11,6 +11,9 @@ export interface ChatMessage {
   id: string;
   sender: 'topson' | 'user';
   senderName: string;
+  userId?: string;
+  userEmail?: string;
+  targetUserId?: string;
   text: string;
   timestamp: string;
   avatarUrl?: string;
@@ -40,13 +43,14 @@ export interface FeedbackItem {
   verified: boolean;
   likes?: number;
   userLiked?: boolean;
+  hidden?: boolean;
   replies?: FeedbackReply[];
 }
 
 export interface VideoItem {
   id: string;
   title: string;
-  category: 'Dev Workflows' | 'Desk & Gear' | 'Full Stack' | 'AI Tools';
+  category: 'Phone Mastery' | 'PC Performance' | 'Digital & Web' | 'Dev Workflows' | 'Desk & Gear' | 'Full Stack' | 'AI Tools' | string;
   duration: string;
   views: string;
   date: string;

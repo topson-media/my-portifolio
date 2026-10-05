@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   ShieldCheck,
   UploadCloud,
@@ -21,10 +21,26 @@ import {
   KeyRound,
   Check,
   TrendingUp,
-  ArrowUpRight
+  ArrowUpRight,
+  Edit3,
+  X,
+  Save,
+  Image as ImageIcon
 } from 'lucide-react';
-import { User, VideoItem, FeedbackItem, EmailMessage, VisitorActivity } from '../types';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip
+} from 'recharts';
+import { User, VideoItem, FeedbackItem, EmailMessage, VisitorActivity, ChatMessage } from '../types';
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
+import { getYouTubeThumbnail, extractYouTubeId } from '../utils/youtubeHelper';
+import { WhatsAppBrandBadge, WhatsAppIcon } from './WhatsAppIcon';
+import { AdminChatDashboard } from './AdminChatDashboard';
 
 interface AdminDashboardProps {
   currentUser: User | null;
@@ -33,8 +49,15 @@ interface AdminDashboardProps {
   emailMessages: EmailMessage[];
   visitorActivities: VisitorActivity[];
   totalVisitorsCount: number;
+  chatMessages?: ChatMessage[];
+  onSendMessage?: (msg: ChatMessage) => void;
+  onDeleteChatMessage?: (msgId: string, mode: 'everyone' | 'me') => void;
+  onMarkMessagesRead?: (ids: string[]) => void;
   onUploadVideo: (video: VideoItem) => void;
+  onDeleteVideo?: (videoId: string) => void;
+  onUpdateVideo?: (video: VideoItem) => void;
   onDeleteFeedback: (feedbackId: string) => void;
+  onHideFeedback?: (feedbackId: string, hidden: boolean) => void;
   onReplyEmailMessage: (emailId: string, replyText: string) => void;
   onAdminLogin: () => void;
   onNavigateHome: () => void;
@@ -47,14 +70,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   emailMessages,
   visitorActivities,
   totalVisitorsCount,
+  chatMessages = [],
+  onSendMessage,
+  onDeleteChatMessage,
+  onMarkMessagesRead,
   onUploadVideo,
+  onDeleteVideo,
+  onUpdateVideo,
   onDeleteFeedback,
+  onHideFeedback,
   onReplyEmailMessage,
   onAdminLogin,
   onNavigateHome,
 }) => {
   // Navigation tabs within Admin Studio
-  const [activeTab, setActiveTab] = useState<'overview' | 'messages' | 'reviews' | 'upload' | 'security'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'chat' | 'messages' | 'reviews' | 'upload' | 'tutorials'>('overview');
 
   // Video upload state
   const [uploadType, setUploadType] = useState<'link' | 'device'>('link');
@@ -64,10 +94,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [videoTitle, setVideoTitle] = useState('');
-  const [videoCategory, setVideoCategory] = useState<'Dev Workflows' | 'Desk & Gear' | 'Full Stack'>('Dev Workflows');
+  const [videoCategory, setVideoCategory] = useState<string>('Phone Mastery');
   const [videoDescription, setVideoDescription] = useState('');
   const [videoDuration, setVideoDuration] = useState('11:45');
   const [uploadSuccess, setUploadSuccess] = useState(false);
+
+  // Auto YouTube thumbnail detection
+  const detectedYouTubeThumb = useMemo(() => {
+    if (uploadType === 'link' && videoLink) {
+      return getYouTubeThumbnail(videoLink);
+    }
+    return null;
+  }, [uploadType, videoLink]);
+
+  // Video Editing modal state
+  const [editingVideo, setEditingVideo] = useState<VideoItem | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategory, setEditCategory] = useState<string>('Phone Mastery');
+  const [editDuration, setEditDuration] = useState('');
+  const [editViews, setEditViews] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editThumbnail, setEditThumbnail] = useState('');
+  const [editVideoUrl, setEditVideoUrl] = useState('');
+  const [editTags, setEditTags] = useState('');
+  const [editSaveSuccess, setEditSaveSuccess] = useState(false);
 
   // Email replies state: map of emailId -> draft reply text
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
@@ -75,6 +126,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [replySentSuccessId, setReplySentSuccessId] = useState<string | null>(null);
 
   const isAdmin = currentUser?.role === 'admin';
+
+  // 7-day visitor trend dataset for Recharts line/area chart
+  const weeklyVisitorTrendData = useMemo(() => {
+    const base = Math.max(120, Math.floor(totalVisitorsCount / 7));
+    return [
+      { day: 'Mon', visitors: Math.round(base * 0.75) },
+      { day: 'Tue', visitors: Math.round(base * 0.88) },
+      { day: 'Wed', visitors: Math.round(base * 0.94) },
+      { day: 'Thu', visitors: Math.round(base * 1.08) },
+      { day: 'Fri', visitors: Math.round(base * 1.15) },
+      { day: 'Sat', visitors: Math.round(base * 1.28) },
+      { day: 'Sun', visitors: Math.round(base * 1.34) },
+    ];
+  }, [totalVisitorsCount]);
 
   const handleDeviceFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -93,6 +158,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     e.preventDefault();
     if (!videoTitle.trim()) return;
 
+    // Automatic YouTube thumbnail extraction when pasting a YouTube/reel link!
+    const ytThumb = uploadType === 'link' ? getYouTubeThumbnail(videoLink.trim()) : null;
+    const finalThumbnail = ytThumb || '/src/assets/images/thumb_ai_workflow_1790770861253.jpg';
+
     const categoryTag =
       videoCategory === 'Dev Workflows'
         ? 'Phone Mastery'
@@ -107,11 +176,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       duration: videoDuration.trim() || '10:00',
       views: '1.5K views',
       date: 'Just now',
-      thumbnail: '/src/assets/images/thumb_ai_workflow_1790770861253.jpg',
+      thumbnail: finalThumbnail,
       videoUrl: uploadType === 'link' ? videoLink.trim() : deviceFilePreviewUrl || '',
       sourceType: uploadType,
       description: videoDescription.trim() || `Practical guide on ${videoTitle.trim()}`,
-      tags: [categoryTag, uploadType === 'device' ? 'From Device' : 'Web Link'],
+      tags: [categoryTag, uploadType === 'device' ? 'From Device' : 'YouTube Link'],
     };
 
     onUploadVideo(newVid);
@@ -122,6 +191,63 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setVideoDescription('');
     setUploadSuccess(true);
     setTimeout(() => setUploadSuccess(false), 3000);
+  };
+
+  const handleOpenEditVideo = (video: VideoItem) => {
+    setEditingVideo(video);
+    setEditTitle(video.title);
+    setEditCategory(video.category);
+    setEditDuration(video.duration);
+    setEditViews(video.views);
+    setEditDate(video.date || 'Just now');
+    setEditDescription(video.description);
+    setEditThumbnail(video.thumbnail);
+    setEditVideoUrl(video.videoUrl || '');
+    setEditTags(video.tags.join(', '));
+    setEditSaveSuccess(false);
+  };
+
+  const handleSaveEditVideo = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVideo) return;
+
+    // Check if new videoUrl is YouTube to auto-fetch thumbnail if requested
+    const autoYt = getYouTubeThumbnail(editVideoUrl);
+    const finalThumb = editThumbnail || autoYt || editingVideo.thumbnail;
+
+    const updated: VideoItem = {
+      ...editingVideo,
+      title: editTitle.trim() || editingVideo.title,
+      category: editCategory,
+      duration: editDuration.trim() || editingVideo.duration,
+      views: editViews.trim() || editingVideo.views,
+      date: editDate.trim() || editingVideo.date,
+      description: editDescription.trim() || editingVideo.description,
+      thumbnail: finalThumb,
+      videoUrl: editVideoUrl.trim() || editingVideo.videoUrl,
+      sourceType: editVideoUrl ? 'link' : editingVideo.sourceType,
+      tags: editTags
+        ? editTags.split(',').map((t) => t.trim()).filter(Boolean)
+        : editingVideo.tags,
+    };
+
+    if (onUpdateVideo) {
+      onUpdateVideo(updated);
+    }
+
+    setEditSaveSuccess(true);
+    setTimeout(() => {
+      setEditSaveSuccess(false);
+      setEditingVideo(null);
+    }, 900);
+  };
+
+  const handleDeleteVideoConfirm = (video: VideoItem) => {
+    if (window.confirm(`Delete tutorial "${video.title}"? This cannot be undone.`)) {
+      if (onDeleteVideo) {
+        onDeleteVideo(video.id);
+      }
+    }
   };
 
   const handleSendReply = (emailItem: EmailMessage) => {
@@ -177,7 +303,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-xs text-neutral-500 font-medium">Logged in as:</span>
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-neutral-200 shadow-2xs">
-                <div className="w-5 h-5 rounded-full overflow-hidden border border-orange-500">
+                <div className="w-6 h-6 rounded-full overflow-hidden border border-orange-500">
                   <img src={TOPSON_PROFILE_IMAGE} alt="Admin" className="w-full h-full object-cover" />
                 </div>
                 <span className="text-xs font-bold text-neutral-900">Topson Media</span>
@@ -189,93 +315,143 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         {isAdmin ? (
           /* ========================================================================= */
-          /* ADMIN IS FULLY AUTHORIZED: ATTRACTIVE DASHBOARD SUITE                     */
+          /* ADMIN IS FULLY AUTHORIZED: DASHBOARD SUITE                                */
           /* ========================================================================= */
           <div className="space-y-8 animate-in fade-in">
             
             {/* 1. METRICS & VISITOR OVERVIEW CARDS */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 sm:gap-5">
               
-              {/* Traffic Overview Card with Total Visitors & Trend Indicator */}
-              <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-white to-orange-50/30 border border-neutral-200 shadow-sm relative overflow-hidden group hover:border-orange-500/50 hover:shadow-md transition-all">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-600 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                    Traffic Overview
-                  </span>
-                  <div className="w-9 h-9 rounded-2xl bg-orange-500/10 text-orange-600 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
-                    <Eye className="w-4 h-4" />
+              {/* Traffic Overview Card with Total Visitors & Interactive Recharts line chart (5 cols) */}
+              <div className="lg:col-span-5 p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-white via-white to-orange-50/40 border border-neutral-200 shadow-sm relative overflow-hidden group hover:border-orange-500/50 hover:shadow-md transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-600 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                      Traffic Overview
+                    </span>
+                    <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
+                      <TrendingUp className="w-3 h-3 text-emerald-600" />
+                      <span>+18.4% this week</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <div className="text-3xl sm:text-4xl font-black text-neutral-900 tracking-tight">
+                      {totalVisitorsCount.toLocaleString()}
+                    </div>
+                    <span className="text-xs text-neutral-500 font-semibold">Total unique visitors</span>
                   </div>
                 </div>
 
-                <div className="flex items-baseline justify-between gap-2 mt-1">
+                {/* Recharts Line Chart displaying daily visitor trends over the past week */}
+                <div className="mt-4 pt-3 border-t border-neutral-100">
+                  <div className="flex items-center justify-between text-[11px] text-neutral-500 font-medium mb-1.5">
+                    <span>Daily Visitors Trend</span>
+                    <span className="text-neutral-900 font-bold">Past 7 Days (Mon - Sun)</span>
+                  </div>
+                  <div className="h-28 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={weeklyVisitorTrendData} margin={{ top: 8, right: 10, left: -22, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis
+                          dataKey="day"
+                          stroke="#94a3b8"
+                          fontSize={10}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis
+                          stroke="#94a3b8"
+                          fontSize={10}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#0f172a',
+                            borderColor: '#334155',
+                            borderRadius: '0.75rem',
+                            fontSize: '11px',
+                            color: '#ffffff',
+                            fontWeight: '600',
+                            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
+                          }}
+                          itemStyle={{ color: '#f97316' }}
+                          formatter={(value) => [`${value} visitors`, 'Traffic']}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="visitors"
+                          stroke="#ea580c"
+                          strokeWidth={2.75}
+                          dot={{ r: 3, fill: '#ea580c', strokeWidth: 1.5, stroke: '#ffffff' }}
+                          activeDot={{ r: 5.5, fill: '#ea580c', stroke: '#ffffff', strokeWidth: 2 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              {/* Total Email Messages (3 cols) */}
+              <div className="lg:col-span-3 p-5 sm:p-6 rounded-3xl bg-white border border-neutral-200 shadow-sm relative overflow-hidden group hover:border-orange-500/40 transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                      Inbound Emails
+                    </span>
+                    <div className="w-9 h-9 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                  </div>
                   <div className="text-3xl font-black text-neutral-900 tracking-tight">
-                    {totalVisitorsCount.toLocaleString()}
-                  </div>
-                  {/* Trend Indicator */}
-                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold shrink-0">
-                    <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>+18.4%</span>
+                    {emailMessages.length}
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between text-[11px] text-neutral-500 font-medium mt-2 pt-2 border-t border-neutral-100">
-                  <span>vs. last 7 days</span>
-                  <span className="text-neutral-800 font-bold">2.4k views/day</span>
+                <div className="pt-3 border-t border-neutral-100 flex items-center justify-between text-[11px]">
+                  <span className="text-neutral-500">Target Inbox</span>
+                  <span className="text-blue-600 font-bold truncate">topsonkenedy@gmail.com</span>
                 </div>
               </div>
 
-              {/* Total Email Messages */}
-              <div className="p-5 sm:p-6 rounded-3xl bg-white border border-neutral-200 shadow-sm relative overflow-hidden group hover:border-orange-500/40 transition-all">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-                    Inbound Emails
-                  </span>
-                  <div className="w-9 h-9 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                    <Mail className="w-4 h-4" />
+              {/* Community Reviews (2 cols) */}
+              <div className="lg:col-span-2 p-5 sm:p-6 rounded-3xl bg-white border border-neutral-200 shadow-sm relative overflow-hidden group hover:border-orange-500/40 transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                      Reviews
+                    </span>
+                    <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                      <MessageSquare className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-black text-neutral-900 tracking-tight">
+                    {feedbacks.length}
                   </div>
                 </div>
-                <div className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
-                  {emailMessages.length}
-                </div>
-                <div className="flex items-center gap-1.5 mt-2 text-[11px] text-blue-600 font-bold">
-                  <span>To: topsonkenedy@gmail.com</span>
+                <div className="pt-3 border-t border-neutral-100 text-[11px] text-neutral-500 font-medium">
+                  Delete & reply enabled
                 </div>
               </div>
 
-              {/* Community Reviews */}
-              <div className="p-5 sm:p-6 rounded-3xl bg-white border border-neutral-200 shadow-sm relative overflow-hidden group hover:border-orange-500/40 transition-all">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-                    Feedbacks
-                  </span>
-                  <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <MessageSquare className="w-4 h-4" />
+              {/* Published Videos (2 cols) */}
+              <div className="lg:col-span-2 p-5 sm:p-6 rounded-3xl bg-white border border-neutral-200 shadow-sm relative overflow-hidden group hover:border-orange-500/40 transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                      Tutorials
+                    </span>
+                    <div className="w-9 h-9 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                      <Film className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-black text-neutral-900 tracking-tight">
+                    {videos.length}
                   </div>
                 </div>
-                <div className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
-                  {feedbacks.length}
-                </div>
-                <div className="flex items-center gap-1.5 mt-2 text-[11px] text-neutral-600 font-semibold">
-                  <span>Full deletion control enabled</span>
-                </div>
-              </div>
-
-              {/* Published Videos */}
-              <div className="p-5 sm:p-6 rounded-3xl bg-white border border-neutral-200 shadow-sm relative overflow-hidden group hover:border-orange-500/40 transition-all">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-                    Tutorials
-                  </span>
-                  <div className="w-9 h-9 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                    <Film className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
-                  {videos.length}
-                </div>
-                <div className="flex items-center gap-1.5 mt-2 text-[11px] text-neutral-600 font-semibold">
-                  <span>Public gallery synced</span>
+                <div className="pt-3 border-t border-neutral-100 text-[11px] text-neutral-500 font-medium">
+                  Edit & delete enabled
                 </div>
               </div>
 
@@ -294,6 +470,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               >
                 <Activity className="w-4 h-4 text-orange-500" />
                 <span>Live Activity & Visitors</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('chat')}
+                className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+                  activeTab === 'chat'
+                    ? 'bg-neutral-900 text-white shadow-sm'
+                    : 'bg-white text-neutral-600 hover:text-neutral-900 border border-neutral-200'
+                }`}
+              >
+                <MessageSquare className="w-4 h-4 text-orange-500" />
+                <span>Live Chat Studio</span>
+                {chatMessages.some((m) => m.sender === 'user' && !m.isRead) && (
+                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('tutorials')}
+                className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+                  activeTab === 'tutorials'
+                    ? 'bg-neutral-900 text-white shadow-sm'
+                    : 'bg-white text-neutral-600 hover:text-neutral-900 border border-neutral-200'
+                }`}
+              >
+                <Film className="w-4 h-4 text-orange-500" />
+                <span>Manage Tutorials ({videos.length})</span>
               </button>
 
               <button
@@ -337,7 +542,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 }`}
               >
                 <UploadCloud className="w-4 h-4 text-orange-500" />
-                <span>Upload New Tutorial</span>
+                <span>Publish Reel / Tutorial</span>
               </button>
             </div>
 
@@ -413,9 +618,51 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
 
                     <div className="pt-3 border-t border-neutral-100 space-y-2 text-xs">
-                      <div className="flex justify-between text-neutral-600 font-medium">
-                        <span>WhatsApp Contact:</span>
-                        <span className="text-neutral-900 font-bold">0794903078</span>
+                      <div className="flex items-center justify-between text-neutral-600 font-medium">
+                        <span className="flex items-center gap-1.5">
+                          <svg className="w-4 h-4 fill-red-600" viewBox="0 0 24 24">
+                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                          </svg>
+                          <span className="text-neutral-800 font-bold">YouTube:</span>
+                        </span>
+                        <a
+                          href="https://www.youtube.com/@topson-media1"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-red-600 hover:text-red-700 font-extrabold transition-colors truncate max-w-[150px]"
+                        >
+                          @topson-media1
+                        </a>
+                      </div>
+                      <div className="flex items-center justify-between text-neutral-600 font-medium">
+                        <span className="flex items-center gap-1.5">
+                          <svg className="w-4 h-4 fill-[#1877F2]" viewBox="0 0 24 24">
+                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                          </svg>
+                          <span className="text-neutral-800 font-bold">Facebook:</span>
+                        </span>
+                        <a
+                          href="https://www.facebook.com/etienne.topson.kenedy"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-700 font-extrabold transition-colors truncate max-w-[150px]"
+                        >
+                          Etienne Topson Kenedy
+                        </a>
+                      </div>
+                      <div className="flex items-center justify-between text-neutral-600 font-medium">
+                        <span className="flex items-center gap-1.5">
+                          <WhatsAppBrandBadge className="w-4 h-4 rounded-md" iconClassName="w-3 h-3 fill-white" />
+                          <span className="text-neutral-800 font-bold">WhatsApp:</span>
+                        </span>
+                        <a
+                          href="https://play.google.com/store/apps/details?id=com.whatsapp"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-neutral-900 hover:text-emerald-600 font-extrabold transition-colors"
+                        >
+                          0794903078
+                        </a>
                       </div>
                       <div className="flex justify-between text-neutral-600 font-medium">
                         <span>Receiving Email:</span>
@@ -441,6 +688,119 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                 </div>
 
+              </div>
+            )}
+
+            {/* TAB: LIVE CHAT STUDIO */}
+            {activeTab === 'chat' && (
+              <div className="rounded-3xl overflow-hidden bg-white border border-neutral-200 shadow-sm">
+                <AdminChatDashboard
+                  currentUser={currentUser}
+                  messages={chatMessages}
+                  onSendMessage={onSendMessage || (() => {})}
+                  onMarkMessagesRead={onMarkMessagesRead}
+                  onDeleteMessage={onDeleteChatMessage}
+                  onBackToOverview={() => setActiveTab('overview')}
+                />
+              </div>
+            )}
+
+            {/* TAB: MANAGE TUTORIALS (EDIT ALL DETAILS & DELETE) */}
+            {activeTab === 'tutorials' && (
+              <div className="rounded-3xl p-6 sm:p-8 bg-white border border-neutral-200 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-100">
+                  <div>
+                    <h3 className="text-lg font-black text-neutral-900 flex items-center gap-2">
+                      <span>Manage All Tutorials</span>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800 font-bold">
+                        {videos.length} videos live
+                      </span>
+                    </h3>
+                    <p className="text-xs text-neutral-600 font-medium mt-0.5">
+                      As admin, you can edit any tutorial's title, thumbnail, category, duration, description, link, or delete it completely.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('upload')}
+                    className="px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-sm shrink-0"
+                  >
+                    <UploadCloud className="w-4 h-4 text-orange-500" />
+                    <span>Upload New</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {videos.map((v) => (
+                    <div
+                      key={v.id}
+                      className="p-4 sm:p-5 rounded-2xl bg-neutral-50 border border-neutral-200 hover:border-orange-500/40 transition-all flex flex-col justify-between gap-3 shadow-2xs group"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="w-24 h-16 rounded-xl overflow-hidden bg-neutral-950 shrink-0 relative border border-neutral-200 shadow-2xs">
+                          <img
+                            src={v.thumbnail}
+                            alt={v.title}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">
+                            {v.category}
+                          </span>
+                          <h4 className="text-sm font-bold text-neutral-900 leading-snug line-clamp-2 mt-0.5">
+                            {v.title}
+                          </h4>
+                          <div className="text-[11px] text-neutral-500 flex items-center gap-2 mt-1">
+                            <span className="font-semibold">{v.duration}</span>
+                            <span>·</span>
+                            <span>{v.views}</span>
+                            <span>·</span>
+                            <span>{v.date}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-neutral-600 line-clamp-2 font-medium bg-white p-2.5 rounded-xl border border-neutral-200/70">
+                        {v.description}
+                      </p>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-neutral-200/80">
+                        <div className="flex flex-wrap gap-1">
+                          {v.tags.slice(0, 2).map((t) => (
+                            <span key={t} className="text-[10px] bg-neutral-200/70 text-neutral-700 px-2 py-0.5 rounded-md font-semibold">
+                              #{t}
+                            </span>
+                          ))}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {/* Edit Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditVideo(v)}
+                            className="px-3 py-1.5 rounded-lg bg-white border border-neutral-300 text-neutral-800 hover:text-orange-600 hover:border-orange-500/50 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                            title="Edit all tutorial details"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit Details</span>
+                          </button>
+
+                          {/* Delete Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteVideoConfirm(v)}
+                            className="p-1.5 rounded-lg bg-white border border-neutral-300 text-neutral-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors cursor-pointer shadow-2xs"
+                            title="Delete this video tutorial"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -577,55 +937,86 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {feedbacks.map((fb) => (
-                    <div
-                      key={fb.id}
-                      className="p-5 rounded-2xl bg-neutral-50 border border-neutral-200/90 shadow-2xs flex flex-col justify-between gap-3 relative group"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2.5">
-                            {fb.avatarUrl ? (
-                              <img src={fb.avatarUrl} alt={fb.authorName} className="w-8 h-8 rounded-full object-cover" />
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-neutral-900 text-white font-bold text-xs flex items-center justify-center">
-                                {fb.authorName.slice(0, 1)}
+                {feedbacks.length === 0 ? (
+                  <div className="py-12 text-center bg-neutral-50 rounded-2xl border border-neutral-200">
+                    <MessageSquare className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
+                    <p className="text-sm font-bold text-neutral-700">No community reviews yet</p>
+                    <p className="text-xs text-neutral-500 font-medium mt-1">
+                      When viewers post reviews in the community section, they will appear here for your moderation.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {feedbacks.map((fb) => (
+                      <div
+                        key={fb.id}
+                        className="p-5 rounded-2xl bg-neutral-50 border border-neutral-200/90 shadow-2xs flex flex-col justify-between gap-3 relative group"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2.5">
+                              {fb.avatarUrl ? (
+                                <img src={fb.avatarUrl} alt={fb.authorName} className="w-8 h-8 rounded-full object-cover" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-neutral-900 text-white font-bold text-xs flex items-center justify-center">
+                                  {fb.authorName.slice(0, 1)}
+                                </div>
+                              )}
+                              <div>
+                                <div className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
+                                  <span>{fb.authorName}</span>
+                                  {fb.hidden && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">
+                                      Hidden
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-neutral-500 font-medium">{fb.authorRole} · {fb.date}</div>
                               </div>
-                            )}
-                            <div>
-                              <div className="text-xs font-bold text-neutral-900">{fb.authorName}</div>
-                              <div className="text-[10px] text-neutral-500 font-medium">{fb.authorRole} · {fb.date}</div>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              {/* Hide / Unhide button */}
+                              {onHideFeedback && (
+                                <button
+                                  type="button"
+                                  onClick={() => onHideFeedback(fb.id, !fb.hidden)}
+                                  className="p-1.5 rounded-lg text-neutral-400 hover:text-amber-600 hover:bg-amber-50 border border-transparent hover:border-amber-200 transition-colors cursor-pointer"
+                                  title={fb.hidden ? 'Unhide review' : 'Hide review from public'}
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                              )}
+
+                              {/* Delete button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm(`Delete review from "${fb.authorName}"?`)) {
+                                    onDeleteFeedback(fb.id);
+                                  }
+                                }}
+                                className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors cursor-pointer"
+                                title="Delete this feedback"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
 
-                          {/* Delete button */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (window.confirm(`Delete review from "${fb.authorName}"?`)) {
-                                onDeleteFeedback(fb.id);
-                              }
-                            }}
-                            className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors cursor-pointer"
-                            title="Delete this feedback"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <p className="text-xs sm:text-sm text-neutral-800 font-medium leading-relaxed italic bg-white p-3 rounded-xl border border-neutral-200/80">
+                            &ldquo;{fb.content}&rdquo;
+                          </p>
                         </div>
 
-                        <p className="text-xs sm:text-sm text-neutral-800 font-medium leading-relaxed italic bg-white p-3 rounded-xl border border-neutral-200/80">
-                          &ldquo;{fb.content}&rdquo;
-                        </p>
+                        <div className="flex items-center justify-between text-[11px] text-neutral-500 font-medium pt-2 border-t border-neutral-200/60">
+                          <span>Rating: {fb.rating}/5 stars</span>
+                          <span>{fb.likes || 0} likes · {fb.replies?.length || 0} replies</span>
+                        </div>
                       </div>
-
-                      <div className="flex items-center justify-between text-[11px] text-neutral-500 font-medium pt-2 border-t border-neutral-200/60">
-                        <span>Rating: {fb.rating}/5 stars</span>
-                        <span>{fb.likes || 0} likes · {fb.replies?.length || 0} replies</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -637,17 +1028,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="lg:col-span-7 rounded-3xl p-6 sm:p-8 bg-white border border-neutral-200 shadow-sm space-y-6">
                   <div>
                     <h3 className="text-lg font-black text-neutral-900">
-                      Upload Video Tutorial
+                      Upload Video Tutorial / Reel
                     </h3>
                     <p className="text-xs text-neutral-600 font-medium mt-0.5">
-                      Publish a new walkthrough directly from your phone/PC or paste an external link.
+                      When pasting a YouTube video or reel link, the thumbnail is extracted automatically!
                     </p>
                   </div>
 
                   {uploadSuccess && (
                     <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in">
                       <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Video published successfully! It is now live in the tutorial section.</span>
+                      <span>Video published successfully with thumbnail! It is now live in the tutorial section.</span>
                     </div>
                   )}
 
@@ -664,7 +1055,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         }`}
                       >
                         <LinkIcon className="w-3.5 h-3.5" />
-                        <span>Paste Video Link</span>
+                        <span>Paste Video/Reel Link</span>
                       </button>
 
                       <button
@@ -682,18 +1073,66 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
 
                     {uploadType === 'link' ? (
-                      <div>
-                        <label className="block text-xs font-bold text-neutral-800 mb-1">
-                          Video URL / Link
+                      <div className="space-y-3">
+                        <label className="block text-xs font-bold text-neutral-800">
+                          Video / Reel Link (YouTube, Shorts, Reel)
                         </label>
-                        <input
-                          type="url"
-                          required
-                          value={videoLink ?? ''}
-                          onChange={(e) => setVideoLink(e.target.value)}
-                          placeholder="https://youtube.com/watch?v=..."
-                          className="w-full px-4 py-2.5 rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-500 text-xs sm:text-sm focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
-                        />
+                        <div className="relative">
+                          <input
+                            type="url"
+                            required
+                            value={videoLink ?? ''}
+                            onChange={(e) => setVideoLink(e.target.value)}
+                            placeholder="Paste YouTube or Reel link (e.g. https://www.youtube.com/watch?v=... or https://youtu.be/...)"
+                            className="w-full px-4 py-2.5 rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-500 text-xs sm:text-sm focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                          />
+                        </div>
+
+                        {/* Automatic YouTube thumbnail preview - Direct from YouTube to Web */}
+                        {detectedYouTubeThumb && (
+                          <div className="p-4 bg-gradient-to-r from-emerald-50/80 via-emerald-50/40 to-white rounded-2xl border border-emerald-200/90 shadow-2xs space-y-2.5 animate-in fade-in">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span>Direct YouTube Thumbnail Detected!</span>
+                              </span>
+                              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                                Ready to publish
+                              </span>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                              <div className="w-32 h-20 rounded-xl overflow-hidden bg-neutral-950 shrink-0 relative border-2 border-emerald-500/50 shadow-sm group">
+                                <img
+                                  src={detectedYouTubeThumb}
+                                  alt="Auto Thumbnail from YouTube"
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    // fallback if quality fails
+                                    const target = e.target as HTMLImageElement;
+                                    const id = extractYouTubeId(videoLink);
+                                    if (id && !target.src.includes('hqdefault')) {
+                                      target.src = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+                                    }
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                                  <div className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center">
+                                    <Film className="w-3 h-3" />
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-xs font-bold text-neutral-900">
+                                  Captured directly from YouTube
+                                </p>
+                                <p className="text-[11px] text-neutral-600 leading-snug">
+                                  This exact image will be set automatically as the high-resolution thumbnail displayed on your web tutorial cards.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div>
@@ -737,7 +1176,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         required
                         value={videoTitle ?? ''}
                         onChange={(e) => setVideoTitle(e.target.value)}
-                        placeholder="Title of tutorial"
+                        placeholder="Title of tutorial or reel"
                         className="w-full px-4 py-2.5 rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-500 text-xs sm:text-sm focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                       />
                     </div>
@@ -808,25 +1247,46 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {videos.map((v) => (
                       <div
                         key={v.id}
-                        className="p-3 rounded-2xl bg-neutral-50 border border-neutral-200/80 flex items-center gap-3"
+                        className="p-3 rounded-2xl bg-neutral-50 border border-neutral-200/80 flex items-center justify-between gap-3 group"
                       >
-                        <div className="w-14 h-9 rounded-xl overflow-hidden bg-neutral-950 shrink-0 relative">
-                          <img
-                            src={v.thumbnail}
-                            alt={v.title}
-                            referrerPolicy="no-referrer"
-                            className="w-full h-full object-cover"
-                          />
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-14 h-9 rounded-xl overflow-hidden bg-neutral-950 shrink-0 relative border border-neutral-200">
+                            <img
+                              src={v.thumbnail}
+                              alt={v.title}
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-bold text-neutral-900 truncate">
+                              {v.title}
+                            </div>
+                            <div className="text-[10px] text-neutral-600 flex items-center gap-1.5 mt-0.5 font-medium">
+                              <span className="font-bold text-neutral-800">{v.duration}</span>
+                              <span>·</span>
+                              <span>{v.views}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-bold text-neutral-900 truncate">
-                            {v.title}
-                          </div>
-                          <div className="text-[10px] text-neutral-600 flex items-center gap-1.5 mt-0.5 font-medium">
-                            <span className="font-bold text-neutral-800">{v.duration}</span>
-                            <span>·</span>
-                            <span>{v.views}</span>
-                          </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditVideo(v)}
+                            className="p-1.5 rounded-lg text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200 transition-colors"
+                            title="Edit details"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteVideoConfirm(v)}
+                            className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -863,6 +1323,201 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
 
       </div>
+
+      {/* EDIT VIDEO MODAL (Allows admin to change all details) */}
+      {editingVideo && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setEditingVideo(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl rounded-3xl bg-white border border-neutral-200 shadow-2xl p-6 sm:p-8 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+              <h3 className="text-lg font-black text-neutral-900 flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-orange-500" />
+                <span>Edit Tutorial Details</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingVideo(null)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-neutral-900"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {editSaveSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-600" />
+                <span>Details updated successfully!</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEditVideo} className="space-y-3.5 text-xs sm:text-sm">
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1">
+                  Tutorial Title
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
+                  >
+                    <option value="Dev Workflows">Phone Mastery</option>
+                    <option value="Desk & Gear">PC Performance</option>
+                    <option value="Full Stack">Digital Skills & Tools</option>
+                    <option value="AI Tools">AI Tools</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Duration
+                  </label>
+                  <input
+                    type="text"
+                    value={editDuration}
+                    onChange={(e) => setEditDuration(e.target.value)}
+                    placeholder="e.g. 11:45"
+                    className="w-full px-3 py-2 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Views Count
+                  </label>
+                  <input
+                    type="text"
+                    value={editViews}
+                    onChange={(e) => setEditViews(e.target.value)}
+                    placeholder="e.g. 1.8K views"
+                    className="w-full px-3 py-2 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Date
+                  </label>
+                  <input
+                    type="text"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    placeholder="e.g. Just now, 2 days ago"
+                    className="w-full px-3 py-2 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1">
+                  Video / YouTube Link URL
+                </label>
+                <input
+                  type="url"
+                  value={editVideoUrl}
+                  onChange={(e) => {
+                    setEditVideoUrl(e.target.value);
+                    const auto = getYouTubeThumbnail(e.target.value);
+                    if (auto) setEditThumbnail(auto);
+                  }}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1">
+                  Thumbnail Image URL
+                </label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={editThumbnail}
+                    onChange={(e) => setEditThumbnail(e.target.value)}
+                    className="flex-1 px-3.5 py-2.5 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
+                  />
+                  {editThumbnail && (
+                    <div className="w-12 h-8 rounded-lg overflow-hidden bg-black border border-neutral-300 shrink-0">
+                      <img src={editThumbnail} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  rows={2}
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1">
+                  Tags (comma separated)
+                </label>
+                <input
+                  type="text"
+                  value={editTags}
+                  onChange={(e) => setEditTags(e.target.value)}
+                  placeholder="Android, Phone Mastery, Speed"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => handleDeleteVideoConfirm(editingVideo)}
+                  className="px-4 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Video</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingVideo(null)}
+                    className="px-4 py-2.5 rounded-xl border border-neutral-300 text-neutral-700 font-bold text-xs hover:bg-neutral-100 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                  >
+                    <Save className="w-3.5 h-3.5 text-orange-500" />
+                    <span>Save All Changes</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

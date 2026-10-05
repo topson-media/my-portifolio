@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role, credentials, and settings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string", "maxLength": 60 },
+        "email": { "type": "string", "format": "email", "maxLength": 120 },
+        "avatarUrl": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "member"] },
+        "joinedDate": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["username", "email", "role"]
+    },
+    "Video": {
+      "title": "Video",
+      "description": "Tutorial video uploaded or linked by admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string" },
+        "duration": { "type": "string" },
+        "views": { "type": "string" },
+        "date": { "type": "string" },
+        "thumbnail": { "type": "string" },
+        "youtubeId": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "sourceType": { "type": "string", "enum": ["link", "device"] },
+        "description": { "type": "string", "maxLength": 2000 },
+        "tags": { "type": "array" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["title", "category", "videoUrl"]
+    },
+    "Feedback": {
+      "title": "Feedback",
+      "description": "Community review and rating submitted by users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorName": { "type": "string", "maxLength": 80 },
+        "authorHandle": { "type": "string", "maxLength": 80 },
+        "authorRole": { "type": "string", "maxLength": 100 },
+        "avatarUrl": { "type": "string" },
+        "rating": { "type": "number" },
+        "date": { "type": "string" },
+        "content": { "type": "string", "maxLength": 2000 },
+        "verified": { "type": "boolean" },
+        "likes": { "type": "number" },
+        "hidden": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["authorName", "content", "rating"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Live chat messages exchanged between users and Topson Media admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sender": { "type": "string", "enum": ["topson", "user"] },
+        "senderName": { "type": "string", "maxLength": 80 },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "targetUserId": { "type": "string" },
+        "text": { "type": "string", "maxLength": 2000 },
+        "timestamp": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["sender", "senderName", "text"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Registered user accounts and profile data"
+    },
+    "/videos/{videoId}": {
+      "schema": "Video",
+      "description": "Public tutorial cards managed by Topson Media admin"
+    },
+    "/feedbacks/{feedbackId}": {
+      "schema": "Feedback",
+      "description": "Public viewer reviews and community ratings"
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Live studio chat messages and one-on-one admin threads"
+    }
+  }
+}

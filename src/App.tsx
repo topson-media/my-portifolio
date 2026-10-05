@@ -22,6 +22,22 @@ import {
   TOPSON_PROFILE_IMAGE,
 } from './data/mockData';
 import { User, FeedbackItem, ChatMessage, VideoItem, EmailMessage, VisitorActivity } from './types';
+import {
+  subscribeToVideos,
+  addVideoToDb,
+  updateVideoInDb,
+  deleteVideoFromDb,
+  subscribeToFeedbacks,
+  addFeedbackToDb,
+  deleteFeedbackFromDb,
+  toggleLikeFeedbackInDb,
+  hideFeedbackInDb,
+  subscribeToMessages,
+  sendMessageToDb,
+  deleteMessageFromDb,
+  markMessagesReadInDb,
+  testFirestoreConnection,
+} from './services/firebase';
 
 export default function App() {
   // Enforce white background on <html>, <body>, and localStorage
@@ -29,6 +45,7 @@ export default function App() {
     document.documentElement.classList.remove('dark');
     document.body.classList.remove('dark');
     localStorage.setItem('topson_theme', 'light');
+    testFirestoreConnection();
   }, []);
 
   // Current view page: always default to 'home' when user opens website
@@ -56,23 +73,13 @@ export default function App() {
   // Search state
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Interactive Videos state (persisted with valid videoUrls & sourceTypes)
+  // Interactive Videos state (Loaded dynamically via Firestore real-time listener)
   const [videoList, setVideoList] = useState<VideoItem[]>(() => {
     const saved = localStorage.getItem('topson_videos');
     if (saved) {
       try {
         const parsed: VideoItem[] = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((item) => {
-            const match = INITIAL_VIDEOS.find((v) => v.id === item.id);
-            return {
-              ...item,
-              videoUrl: item.videoUrl || match?.videoUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-              sourceType: item.sourceType || match?.sourceType || 'device',
-            };
-          });
-        }
-        return INITIAL_VIDEOS;
+        if (Array.isArray(parsed)) return parsed;
       } catch {
         return INITIAL_VIDEOS;
       }
@@ -80,12 +87,13 @@ export default function App() {
     return INITIAL_VIDEOS;
   });
 
-  // Interactive Community Feedbacks
+  // Interactive Community Feedbacks (Loaded dynamically via Firestore real-time listener)
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>(() => {
     const saved = localStorage.getItem('topson_feedbacks');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed: FeedbackItem[] = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       } catch {
         return INITIAL_FEEDBACKS;
       }
@@ -103,70 +111,15 @@ export default function App() {
         return [];
       }
     }
-    return [
-      {
-        id: 'msg-seed-1',
-        senderName: 'David Kamanzi',
-        senderEmail: 'david.k@gmail.com',
-        subject: 'Phone Battery Optimization Tutorial Request',
-        message: 'Hello Topson Media, love your phone walkthroughs! Could you do a dedicated video on stopping background battery drain on Android 14? Thank you!',
-        timestamp: '1 hour ago',
-        replies: [],
-      },
-      {
-        id: 'msg-seed-2',
-        senderName: 'Sarah Uwase',
-        senderEmail: 'sarah.u@outlook.com',
-        subject: 'Sponsorship & Studio Setup Inquiry',
-        message: 'Hi Topson! I run a tech accessories brand in East Africa. We would love to collaborate on a setup review video.',
-        timestamp: '3 hours ago',
-        replies: [],
-      }
-    ];
+    return [];
   });
 
   // Real-time Visitor & User Traffic Activities
-  const [visitorActivities, setVisitorActivities] = useState<VisitorActivity[]>([
-    {
-      id: 'act-1',
-      type: 'visit',
-      description: 'Visitor opened Topson Media Homepage from Kigali, Rwanda',
-      timestamp: 'Just now',
-      userIpOrName: 'Visitor #4829',
-    },
-    {
-      id: 'act-2',
-      type: 'watch',
-      description: 'Watched "Clean Phone Storage Without Deleting Photos"',
-      timestamp: '2 mins ago',
-      userIpOrName: 'Mobile User (Android)',
-    },
-    {
-      id: 'act-3',
-      type: 'chat',
-      description: 'Engaged with Topson Media in Live Studio Chat',
-      timestamp: '5 mins ago',
-      userIpOrName: 'Eric G.',
-    },
-    {
-      id: 'act-4',
-      type: 'email',
-      description: 'Sent email inquiry to topsonkenedy@gmail.com',
-      timestamp: '1 hour ago',
-      userIpOrName: 'David Kamanzi',
-    },
-    {
-      id: 'act-5',
-      type: 'visit',
-      description: 'Visited YouTube channel via social medias link',
-      timestamp: '2 hours ago',
-      userIpOrName: 'Visitor #4820',
-    },
-  ]);
+  const [visitorActivities, setVisitorActivities] = useState<VisitorActivity[]>([]);
 
   const [totalVisitorsCount, setTotalVisitorsCount] = useState<number>(() => {
     const saved = localStorage.getItem('topson_visitor_count');
-    return saved ? parseInt(saved, 10) : 1248;
+    return saved ? parseInt(saved, 10) : 1;
   });
 
   useEffect(() => {
@@ -181,18 +134,43 @@ export default function App() {
     }
   }, []);
 
-  // Interactive Live Chat Messages
+  // Interactive Live Chat Messages (Loaded dynamically via Firestore real-time listener)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
     const saved = localStorage.getItem('topson_chat_messages');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       } catch {
         return INITIAL_CHAT_MESSAGES;
       }
     }
     return INITIAL_CHAT_MESSAGES;
   });
+
+  // Real-time Firestore Subscriptions for Videos, Feedbacks, and Messages
+  useEffect(() => {
+    const unsubVideos = subscribeToVideos((vids) => {
+      setVideoList(vids);
+      localStorage.setItem('topson_videos', JSON.stringify(vids));
+    });
+
+    const unsubFeedbacks = subscribeToFeedbacks((fbs) => {
+      setFeedbacks(fbs);
+      localStorage.setItem('topson_feedbacks', JSON.stringify(fbs));
+    });
+
+    const unsubMessages = subscribeToMessages((msgs) => {
+      setChatMessages(msgs);
+      localStorage.setItem('topson_chat_messages', JSON.stringify(msgs));
+    });
+
+    return () => {
+      unsubVideos();
+      unsubFeedbacks();
+      unsubMessages();
+    };
+  }, []);
 
   // Ensure dark class is never present
   useEffect(() => {
@@ -311,11 +289,17 @@ export default function App() {
     setAuthModalOpen(true);
   };
 
-  // Add new feedback
-  const handleAddFeedback = (newFb: FeedbackItem) => {
+  // Add new feedback (persists to Firestore database & local state)
+  const handleAddFeedback = async (newFb: FeedbackItem) => {
     const updated = [newFb, ...feedbacks];
     setFeedbacks(updated);
     localStorage.setItem('topson_feedbacks', JSON.stringify(updated));
+
+    try {
+      await addFeedbackToDb(newFb);
+    } catch (err) {
+      console.warn('Firestore addFeedback fallback:', err);
+    }
 
     setVisitorActivities((prev) => [
       {
@@ -329,11 +313,17 @@ export default function App() {
     ]);
   };
 
-  // Delete feedback (Admin control)
-  const handleDeleteFeedback = (feedbackId: string) => {
+  // Delete feedback (Admin control, deletes from Firestore)
+  const handleDeleteFeedback = async (feedbackId: string) => {
     const updated = feedbacks.filter((fb) => fb.id !== feedbackId);
     setFeedbacks(updated);
     localStorage.setItem('topson_feedbacks', JSON.stringify(updated));
+
+    try {
+      await deleteFeedbackFromDb(feedbackId);
+    } catch (err) {
+      console.warn('Firestore deleteFeedback fallback:', err);
+    }
 
     setVisitorActivities((prev) => [
       {
@@ -345,6 +335,19 @@ export default function App() {
       },
       ...prev,
     ]);
+  };
+
+  // Hide or unhide feedback (Admin moderation, updates Firestore)
+  const handleHideFeedback = async (feedbackId: string, hidden: boolean) => {
+    const updated = feedbacks.map((fb) => (fb.id === feedbackId ? { ...fb, hidden } : fb));
+    setFeedbacks(updated);
+    localStorage.setItem('topson_feedbacks', JSON.stringify(updated));
+
+    try {
+      await hideFeedbackInDb(feedbackId, hidden);
+    } catch (err) {
+      console.warn('Firestore hideFeedback fallback:', err);
+    }
   };
 
   // Inbound message sent to admin (topsonkenedy@gmail.com)
@@ -401,17 +404,19 @@ export default function App() {
     ]);
   };
 
-  // Toggle Like on Feedback Item
-  const handleToggleLikeFeedback = (feedbackId: string) => {
+  // Toggle Like on Feedback Item (persisted to Firestore)
+  const handleToggleLikeFeedback = async (feedbackId: string) => {
+    let newLikes = 0;
     setFeedbacks((prev) => {
       const updated = prev.map((fb) => {
         if (fb.id === feedbackId) {
-          const currentlyLiked = !!fb.userLiked;
+          const currentlyLiked = !fb.userLiked;
           const currentCount = fb.likes ?? 0;
+          newLikes = currentlyLiked ? currentCount + 1 : Math.max(0, currentCount - 1);
           return {
             ...fb,
-            userLiked: !currentlyLiked,
-            likes: currentlyLiked ? Math.max(0, currentCount - 1) : currentCount + 1,
+            userLiked: currentlyLiked,
+            likes: newLikes,
           };
         }
         return fb;
@@ -419,6 +424,12 @@ export default function App() {
       localStorage.setItem('topson_feedbacks', JSON.stringify(updated));
       return updated;
     });
+
+    try {
+      await toggleLikeFeedbackInDb(feedbackId, newLikes);
+    } catch (err) {
+      console.warn('Firestore toggleLike fallback:', err);
+    }
   };
 
   // Add Reply to Feedback Item
@@ -438,58 +449,119 @@ export default function App() {
     });
   };
 
-  // Handle upload video (Admin only)
-  const handleUploadVideo = (newVid: VideoItem) => {
+  // Handle upload video (Admin only, persists to Firestore)
+  const handleUploadVideo = async (newVid: VideoItem) => {
     const updated = [newVid, ...videoList];
     setVideoList(updated);
     localStorage.setItem('topson_videos', JSON.stringify(updated));
+
+    try {
+      await addVideoToDb(newVid);
+    } catch (err) {
+      console.warn('Firestore addVideo fallback:', err);
+    }
+
+    setVisitorActivities((prev) => [
+      {
+        id: 'act-' + Date.now(),
+        type: 'watch',
+        description: `Admin published new tutorial "${newVid.title}"`,
+        timestamp: 'Just now',
+        userIpOrName: 'Topson Media',
+      },
+      ...prev,
+    ]);
   };
 
-  // Handle user sending chat message
-  const handleSendMessage = (msg: ChatMessage) => {
+  // Handle delete video (Admin only, deletes from Firestore)
+  const handleDeleteVideo = async (videoId: string) => {
+    const updated = videoList.filter((v) => v.id !== videoId);
+    setVideoList(updated);
+    localStorage.setItem('topson_videos', JSON.stringify(updated));
+
+    try {
+      await deleteVideoFromDb(videoId);
+    } catch (err) {
+      console.warn('Firestore deleteVideo fallback:', err);
+    }
+
+    setVisitorActivities((prev) => [
+      {
+        id: 'act-' + Date.now(),
+        type: 'watch',
+        description: `Admin deleted tutorial`,
+        timestamp: 'Just now',
+        userIpOrName: 'Topson Media',
+      },
+      ...prev,
+    ]);
+  };
+
+  // Handle update/edit video details (Admin only, updates Firestore)
+  const handleUpdateVideo = async (updatedVid: VideoItem) => {
+    const updated = videoList.map((v) => (v.id === updatedVid.id ? updatedVid : v));
+    setVideoList(updated);
+    localStorage.setItem('topson_videos', JSON.stringify(updated));
+
+    try {
+      await updateVideoInDb(updatedVid);
+    } catch (err) {
+      console.warn('Firestore updateVideo fallback:', err);
+    }
+
+    setVisitorActivities((prev) => [
+      {
+        id: 'act-' + Date.now(),
+        type: 'watch',
+        description: `Admin updated details for "${updatedVid.title}"`,
+        timestamp: 'Just now',
+        userIpOrName: 'Topson Media',
+      },
+      ...prev,
+    ]);
+  };
+
+  // Handle user sending chat message (hits Firestore real-time collection)
+  const handleSendMessage = async (msg: ChatMessage) => {
     const updated = [...chatMessages, msg];
     setChatMessages(updated);
     localStorage.setItem('topson_chat_messages', JSON.stringify(updated));
+
+    try {
+      await sendMessageToDb(msg);
+    } catch (err) {
+      console.warn('Firestore sendMessage fallback:', err);
+    }
   };
 
-  // Handle delete or un-send message
-  const handleDeleteChatMessage = (msgId: string, mode: 'everyone' | 'me') => {
+  // Handle delete or un-send message (deletes from Firestore)
+  const handleDeleteChatMessage = async (msgId: string, _mode: 'everyone' | 'me') => {
     setChatMessages((prev) => {
-      let updated: ChatMessage[];
-      if (mode === 'everyone') {
-        // Direct un-send: removed for everyone (hoster and sender panel)
-        updated = prev.filter((m) => m.id !== msgId);
-      } else {
-        // Deleted for me: sender's panel only
-        updated = prev.filter((m) => m.id !== msgId);
-      }
+      const updated = prev.filter((m) => m.id !== msgId);
       localStorage.setItem('topson_chat_messages', JSON.stringify(updated));
       return updated;
     });
+
+    try {
+      await deleteMessageFromDb(msgId);
+    } catch (err) {
+      console.warn('Firestore deleteMessage fallback:', err);
+    }
   };
 
-  // Handle marking messages as read (turns white tick into double blue ticks)
-  const handleMarkMessagesRead = (ids: string[]) => {
+  // Handle marking messages as read in Firestore
+  const handleMarkMessagesRead = async (ids: string[]) => {
     setChatMessages((prev) => {
       const updated = prev.map((m) => (ids.includes(m.id) ? { ...m, isRead: true } : m));
       localStorage.setItem('topson_chat_messages', JSON.stringify(updated));
       return updated;
     });
-  };
 
-  // Handle Topson automatic response
-  const handleTopsonReply = (replyText: string) => {
-    const topsonMsg: ChatMessage = {
-      id: 'msg-' + Date.now(),
-      sender: 'topson',
-      senderName: 'Topson Media',
-      text: replyText,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      avatarUrl: TOPSON_PROFILE_IMAGE,
-    };
-    const updated = [...chatMessages, topsonMsg];
-    setChatMessages(updated);
-    localStorage.setItem('topson_chat_messages', JSON.stringify(updated));
+    try {
+      await markMessagesReadInDb(ids);
+    } catch (err) {
+      console.warn('Firestore markMessagesRead fallback:', err);
+    }
   };
 
   // Calculate matching items count for search indicator in Video Gallery
@@ -549,6 +621,8 @@ export default function App() {
                 currentUser={currentUser}
                 onOpenAdminAuth={() => handleOpenAuth('admin')}
                 onUploadVideo={handleUploadVideo}
+                onDeleteVideo={handleDeleteVideo}
+                onUpdateVideo={handleUpdateVideo}
               />
 
               {/* Community Feedback Section (Unified Card) */}
@@ -560,6 +634,7 @@ export default function App() {
                 onToggleLikeFeedback={handleToggleLikeFeedback}
                 onAddReplyFeedback={handleAddReplyFeedback}
                 onDeleteFeedback={handleDeleteFeedback}
+                onHideFeedback={handleHideFeedback}
               />
 
               {/* Live Chat Section */}
@@ -568,7 +643,6 @@ export default function App() {
                 onOpenAuth={() => handleOpenAuth('signin')}
                 messages={chatMessages}
                 onSendMessage={handleSendMessage}
-                onTopsonReply={handleTopsonReply}
                 onMarkMessagesRead={handleMarkMessagesRead}
                 onDeleteMessage={handleDeleteChatMessage}
               />
@@ -589,8 +663,15 @@ export default function App() {
                 emailMessages={emailMessages}
                 visitorActivities={visitorActivities}
                 totalVisitorsCount={totalVisitorsCount}
+                chatMessages={chatMessages}
+                onSendMessage={handleSendMessage}
+                onDeleteChatMessage={handleDeleteChatMessage}
+                onMarkMessagesRead={handleMarkMessagesRead}
                 onUploadVideo={handleUploadVideo}
+                onDeleteVideo={handleDeleteVideo}
+                onUpdateVideo={handleUpdateVideo}
                 onDeleteFeedback={handleDeleteFeedback}
+                onHideFeedback={handleHideFeedback}
                 onReplyEmailMessage={handleReplyEmailMessage}
                 onAdminLogin={() => handleOpenAuth('admin')}
                 onNavigateHome={() => handleNavClick('home')}

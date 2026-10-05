@@ -52,7 +52,7 @@ export const Footer: React.FC = () => {
     },
     {
       name: 'Facebook',
-      url: 'https://facebook.com/topsonmedia',
+      url: 'https://www.facebook.com/etienne.topson.kenedy',
       icon: (
         <div className="w-10 h-10 rounded-full bg-[#1877F2] flex items-center justify-center text-white hover:scale-105 transition-all shadow-sm shadow-blue-500/30">
           <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">

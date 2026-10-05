@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Lock, CheckCircle2, Check, CheckCheck, Trash2, MoreVertical, X, AlertTriangle } from 'lucide-react';
+import { Send, Lock, CheckCircle2, Check, CheckCheck, Trash2, MoreVertical, X, AlertTriangle, ShieldCheck, MessageSquare } from 'lucide-react';
 import { ChatMessage, User } from '../types';
-import { TOPSON_PROFILE_IMAGE, TOPSON_REPLIES } from '../data/mockData';
+import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
+import { WhatsAppIcon } from './WhatsAppIcon';
+import { AdminChatDashboard } from './AdminChatDashboard';
 
 interface LiveChatProps {
   currentUser: User | null;
   onOpenAuth: () => void;
   messages: ChatMessage[];
   onSendMessage: (msg: ChatMessage) => void;
-  onTopsonReply: (replyText: string) => void;
+  onTopsonReply?: (replyText: string) => void;
   onMarkMessagesRead?: (ids: string[]) => void;
   onDeleteMessage?: (msgId: string, mode: 'everyone' | 'me') => void;
   isStandalonePage?: boolean;
@@ -37,29 +39,20 @@ export const LiveChat: React.FC<LiveChatProps> = ({
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+        if (Array.isArray(parsed)) {
+          // Filter out legacy mock welcome messages if clean slate
+          const filtered = parsed.filter((m) => m.id !== 'msg-welcome' && m.id !== 'msg-1');
+          return filtered;
         }
       } catch {
         // fallback
       }
     }
-    return messages && messages.length > 0
-      ? messages
-      : [
-          {
-            id: 'msg-welcome',
-            sender: 'topson',
-            senderName: 'Topson Media',
-            text: WELCOME_FULL_TEXT,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            avatarUrl: TOPSON_PROFILE_IMAGE,
-          },
-        ];
+    return messages ? messages.filter((m) => m.id !== 'msg-welcome' && m.id !== 'msg-1') : [];
   });
 
   const [inputText, setInputText] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const [adminChatMode, setAdminChatMode] = useState<'stream' | 'dashboard'>('stream');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -97,7 +90,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
 
   useEffect(() => {
     scrollToBottom();
-  }, [localMessages, isTyping, animatedWelcomeText]);
+  }, [localMessages, animatedWelcomeText]);
 
   // Sync external incoming messages without erasing local messages
   useEffect(() => {
@@ -123,20 +116,23 @@ export const LiveChat: React.FC<LiveChatProps> = ({
     }
   }, [messages]);
 
-  // 1. FIX PERSISTENT MESSAGE BUG & 2. TICKS LOGIC
+  // 1. PERSISTENT CHAT HISTORY & REAL ADMIN/USER MESSAGING (ZERO AI BOTS)
   const handleSend = (textToSend?: string) => {
     const text = (textToSend || inputText).trim();
     if (!text || !currentUser) return;
 
+    const isAdmin = currentUser.role === 'admin';
     const newMsgId = 'msg-' + Date.now();
     const newMsg: ChatMessage = {
       id: newMsgId,
-      sender: 'user',
-      senderName: currentUser.username,
+      sender: isAdmin ? 'topson' : 'user',
+      senderName: isAdmin ? 'Topson Media (Admin)' : currentUser.username,
+      userId: isAdmin ? undefined : currentUser.id,
+      userEmail: isAdmin ? undefined : currentUser.email,
       text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      avatarUrl: currentUser.avatarUrl,
-      isRead: false, // Initially unread: exactly ONE WHITE TICK next to timestamp
+      avatarUrl: isAdmin ? TOPSON_PROFILE_IMAGE : currentUser.avatarUrl,
+      isRead: isAdmin, // Admin message is already read; user message starts unread
     };
 
     // Immediately append to local chat history state so it renders permanently
@@ -152,50 +148,9 @@ export const LiveChat: React.FC<LiveChatProps> = ({
     // Notify parent callback
     onSendMessage(newMsg);
 
-    // After realistic dwell (550ms), host reads the message: changes to DOUBLE BLUE TICKS
-    setTimeout(() => {
-      setLocalMessages((prev) => {
-        const updated = prev.map((m) => (m.id === newMsgId ? { ...m, isRead: true } : m));
-        localStorage.setItem('topson_chat_messages', JSON.stringify(updated));
-        return updated;
-      });
-      if (onMarkMessagesRead) {
-        onMarkMessagesRead([newMsgId]);
-      }
-      setIsTyping(true);
-    }, 600);
-
-    // After typing duration, host replies directly
-    setTimeout(() => {
-      setIsTyping(false);
-      const lower = text.toLowerCase();
-      let matchedReply =
-        "Thanks for asking! I cover this in our phone and PC optimization walkthroughs. I'm also preparing a dedicated deep-dive video on this exact topic next week!";
-
-      for (const item of TOPSON_REPLIES) {
-        if (item.keywords.some((kw) => lower.includes(kw))) {
-          matchedReply = item.reply;
-          break;
-        }
-      }
-
-      const topsonReplyMsg: ChatMessage = {
-        id: 'msg-' + Date.now(),
-        sender: 'topson',
-        senderName: 'Topson Media',
-        text: matchedReply,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        avatarUrl: TOPSON_PROFILE_IMAGE,
-      };
-
-      setLocalMessages((prev) => {
-        const updated = [...prev, topsonReplyMsg];
-        localStorage.setItem('topson_chat_messages', JSON.stringify(updated));
-        return updated;
-      });
-
-      onTopsonReply(matchedReply);
-    }, 1300);
+    if (isAdmin && onTopsonReply) {
+      onTopsonReply(text);
+    }
   };
 
   // PRESS AND HOLD HANDLERS
@@ -282,8 +237,62 @@ export const LiveChat: React.FC<LiveChatProps> = ({
           </div>
         </div>
 
-        {/* 3. CHAT INTERFACE: Pure white background and clear high contrast text */}
-        {currentUser ? (
+        {/* Admin Chat View Selector */}
+        {currentUser?.role === 'admin' && (
+          <div className="mb-6 p-3.5 rounded-2xl bg-neutral-900 text-white flex flex-wrap items-center justify-between gap-3 shadow-md border border-neutral-800">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-orange-500 shrink-0" />
+              <div>
+                <div className="text-xs font-bold text-white flex items-center gap-2">
+                  <span>Logged in as Admin (Topson Media)</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                    100% Human Controlled
+                  </span>
+                </div>
+                <p className="text-[11px] text-neutral-400">
+                  All automated AI bot systems deleted. Reply manually to each active chatter.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAdminChatMode('stream')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  adminChatMode === 'stream'
+                    ? 'bg-orange-500 text-white shadow-xs'
+                    : 'bg-neutral-800 text-neutral-300 hover:text-white'
+                }`}
+              >
+                Live Stream Chat
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdminChatMode('dashboard')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  adminChatMode === 'dashboard'
+                    ? 'bg-orange-500 text-white shadow-xs'
+                    : 'bg-neutral-800 text-neutral-300 hover:text-white'
+                }`}
+              >
+                <span>Admin Chat Dashboard</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {currentUser?.role === 'admin' && adminChatMode === 'dashboard' ? (
+          <AdminChatDashboard
+            currentUser={currentUser}
+            messages={localMessages}
+            onSendMessage={onSendMessage}
+            onMarkMessagesRead={onMarkMessagesRead}
+            onDeleteMessage={onDeleteMessage}
+            onBackToOverview={() => setAdminChatMode('stream')}
+          />
+        ) : currentUser ? (
           <div className="rounded-3xl overflow-hidden bg-white border border-neutral-200 shadow-md flex flex-col h-[620px]">
             
             {/* Top Chat Bar: Profile Info + Real, Colorful Brand Social Logos */}
@@ -319,11 +328,11 @@ export const LiveChat: React.FC<LiveChatProps> = ({
 
                 {/* YouTube - Red */}
                 <a
-                  href="https://youtube.com/@topsonmedia"
+                  href="https://www.youtube.com/@topson-media1"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-8 h-8 rounded-xl bg-red-50 hover:bg-[#FF0000] text-[#FF0000] hover:text-white border border-red-200/70 hover:border-transparent flex items-center justify-center transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95"
-                  title="YouTube (@topsonmedia)"
+                  title="YouTube (@topson-media1)"
                   aria-label="YouTube channel"
                 >
                   <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
@@ -361,16 +370,28 @@ export const LiveChat: React.FC<LiveChatProps> = ({
 
                 {/* Facebook - Official Blue */}
                 <a
-                  href="https://facebook.com/topsonmedia"
+                  href="https://www.facebook.com/etienne.topson.kenedy"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-8 h-8 rounded-xl bg-[#1877F2]/10 hover:bg-[#1877F2] text-[#1877F2] hover:text-white border border-[#1877F2]/30 hover:border-transparent flex items-center justify-center transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 shadow-blue-500/20"
-                  title="Facebook (Topson Media)"
+                  title="Facebook (Etienne Topson Kenedy)"
                   aria-label="Facebook page"
                 >
                   <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
                     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
                   </svg>
+                </a>
+
+                {/* WhatsApp - Real Brand Green */}
+                <a
+                  href="https://play.google.com/store/apps/details?id=com.whatsapp"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-8 h-8 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366] text-[#25D366] hover:text-white border border-[#25D366]/30 hover:border-transparent flex items-center justify-center transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 shadow-emerald-500/20"
+                  title="WhatsApp (0794903078)"
+                  aria-label="WhatsApp"
+                >
+                  <WhatsAppIcon className="w-4 h-4 fill-current" />
                 </a>
               </div>
 
@@ -378,7 +399,18 @@ export const LiveChat: React.FC<LiveChatProps> = ({
 
             {/* Chat Messages Display Panel */}
             <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 custom-scrollbar bg-white">
-              {localMessages.map((msg, index) => {
+              {localMessages.length === 0 ? (
+                <div className="py-20 text-center text-neutral-500 space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-neutral-100 flex items-center justify-center text-neutral-400 mx-auto">
+                    <MessageSquare className="w-6 h-6 text-neutral-400" />
+                  </div>
+                  <h4 className="text-base font-bold text-neutral-900">No chat messages yet</h4>
+                  <p className="text-xs text-neutral-500 max-w-xs mx-auto leading-relaxed">
+                    Type a message below to start a live conversation directly with Topson Media in the studio.
+                  </p>
+                </div>
+              ) : (
+                localMessages.map((msg, index) => {
                 const isTopson = msg.sender === 'topson';
                 const isFirstWelcomeMsg = isTopson && index === 0;
 
@@ -396,6 +428,15 @@ export const LiveChat: React.FC<LiveChatProps> = ({
                           <img
                             src={TOPSON_PROFILE_IMAGE}
                             alt="Topson Media"
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover rounded-full"
+                          />
+                        </div>
+                      ) : msg.avatarUrl ? (
+                        <div className="w-9 h-9 rounded-full border border-neutral-300 overflow-hidden bg-white shadow-2xs shrink-0">
+                          <img
+                            src={msg.avatarUrl}
+                            alt={msg.senderName}
                             referrerPolicy="no-referrer"
                             className="w-full h-full object-cover rounded-full"
                           />
@@ -496,25 +537,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
                     </div>
                   </div>
                 );
-              })}
-
-              {/* Topson typing indicator */}
-              {isTyping && (
-                <div className="flex gap-3 w-fit max-w-[320px] mr-auto items-start animate-pulse">
-                  <div className="w-9 h-9 rounded-full border-2 border-orange-500 p-0.5 bg-white shrink-0 mt-0.5">
-                    <img
-                      src={TOPSON_PROFILE_IMAGE}
-                      alt="Topson Media"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover rounded-full"
-                    />
-                  </div>
-                  <div className="p-3 rounded-2xl bg-neutral-100 text-xs font-semibold text-neutral-800 border border-neutral-200 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-ping" />
-                    <span>Topson Media is typing...</span>
-                  </div>
-                </div>
-              )}
+              }))}
 
               <div ref={messagesEndRef} />
             </div>
@@ -530,6 +553,22 @@ export const LiveChat: React.FC<LiveChatProps> = ({
               >
                 {/* Single unified horizontal container */}
                 <div className="flex items-center bg-white rounded-2xl border border-neutral-300 p-1.5 shadow-xs transition-all duration-200 focus-within:border-orange-500 focus-within:ring-3 focus-within:ring-orange-500/25 focus-within:shadow-[0_0_15px_rgba(249,115,22,0.25)]">
+                  {currentUser && (
+                    <div className="w-8 h-8 rounded-full overflow-hidden border border-neutral-300 ml-1 shrink-0 shadow-2xs">
+                      {currentUser.avatarUrl ? (
+                        <img
+                          src={currentUser.avatarUrl}
+                          alt={currentUser.username}
+                          className="w-full h-full object-cover rounded-full"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-neutral-900 text-white font-bold text-xs flex items-center justify-center">
+                          {currentUser.username.slice(0, 1).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <input
                     ref={inputRef}
                     type="text"

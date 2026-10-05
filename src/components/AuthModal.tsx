@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { X, Lock, Mail, User as UserIcon, KeyRound, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Lock, Mail, User as UserIcon, KeyRound, CheckCircle, Camera, UploadCloud } from 'lucide-react';
 import { User } from '../types';
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
+import { registerUserInDb, loginUserFromDb } from '../services/firebase';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -21,6 +22,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [email, setEmail] = useState('');           // For Register
   const [username, setUsername] = useState('');     // For Register
   const [password, setPassword] = useState('');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -28,6 +31,48 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsSignUp(initialMode === 'signup');
     setError(null);
   }, [initialMode, isOpen]);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const rawData = reader.result as string;
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 180;
+          let w = img.width;
+          let h = img.height;
+          if (w > h) {
+            if (w > maxDim) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            }
+          } else {
+            if (h > maxDim) {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h);
+            setAvatarPreview(canvas.toDataURL('image/jpeg', 0.85));
+          } else {
+            setAvatarPreview(rawData);
+          }
+        };
+        img.onerror = () => {
+          setAvatarPreview(rawData);
+        };
+        img.src = rawData;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Handle ESC key to close modal
   useEffect(() => {
@@ -47,7 +92,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setError(null);
     setIsSubmitting(true);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       if (isSignUp) {
         // Validation: Email, Username, Password required
         if (!email.trim() || !username.trim() || !password.trim()) {
@@ -66,21 +111,61 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           return;
         }
 
+        // Persistent Registered Accounts check
+        const rawAccounts = localStorage.getItem('topson_registered_accounts');
+        let accounts: Array<User & { password?: string }> = [];
+        if (rawAccounts) {
+          try {
+            accounts = JSON.parse(rawAccounts);
+          } catch {
+            accounts = [];
+          }
+        }
+
+        const lowerEmail = email.trim().toLowerCase();
+        const lowerUsername = username.trim().toLowerCase();
+
+        const existing = accounts.find(
+          (a) => a.email.toLowerCase() === lowerEmail || a.username.toLowerCase() === lowerUsername
+        );
+        if (existing) {
+          setError('An account with this email or username already exists. Please sign in.');
+          setIsSubmitting(false);
+          return;
+        }
+
+        const isDedicatedAdminSignup =
+          (lowerUsername === 'admin' || lowerEmail === 'admin@topsonmedia.com') &&
+          password === 'TopsonAdmin2026';
+
         const isExplicitAdmin =
-          (email.trim().toLowerCase() === 'topsonkenedy@gmail.com' && password === 'nzayikoreraetsiyene') ||
-          (username.trim().toLowerCase() === 'topsonkenedy' && password === 'nzayikoreraetsiyene') ||
-          (email.trim().toLowerCase() === 'jabsco59@gmail.com' && password === '123456789q');
+          isDedicatedAdminSignup ||
+          (lowerEmail === 'topsonkenedy@gmail.com' && password === 'nzayikoreraetsiyene') ||
+          (lowerUsername === 'topsonkenedy' && password === 'nzayikoreraetsiyene') ||
+          (lowerEmail === 'jabsco59@gmail.com' && password === '123456789q');
 
         const newUser: User = {
           id: isExplicitAdmin ? 'admin-topson' : 'user-' + Date.now(),
           username: isExplicitAdmin ? 'Topson Media' : username.trim(),
-          email: email.trim(),
+          email: lowerEmail,
           role: isExplicitAdmin ? 'admin' : 'member',
           joinedDate: isExplicitAdmin ? 'Channel Creator & Admin' : 'Joined today',
-          avatarUrl: isExplicitAdmin
+          avatarUrl: avatarPreview || (isExplicitAdmin
             ? TOPSON_PROFILE_IMAGE
-            : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username.trim())}`,
+            : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username.trim())}`),
         };
+
+        // Real Database Registration & Profile Creation
+        try {
+          await registerUserInDb(newUser, password);
+        } catch (dbErr) {
+          console.warn('Network registration sync warning:', dbErr);
+        }
+
+        // Save account into registered accounts list locally
+        accounts.push({ ...newUser, password });
+        localStorage.setItem('topson_registered_accounts', JSON.stringify(accounts));
+        localStorage.setItem('topson_user', JSON.stringify(newUser));
 
         setIsSubmitting(false);
         onSuccess(newUser);
@@ -95,6 +180,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         const normalizedIdentifier = identifier.trim().toLowerCase();
 
+        // Check for dedicated Admin Account capability requested by user:
+        // Username: "admin"
+        // Password: "TopsonAdmin2026"
+        const isDedicatedAdmin =
+          (normalizedIdentifier === 'admin' || normalizedIdentifier === 'admin@topsonmedia.com') &&
+          password === 'TopsonAdmin2026';
+
         // Check for specific admin credentials requested:
         // email: topsonkenedy@gmail.com
         // password: nzayikoreraetsiyene
@@ -107,21 +199,74 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           (normalizedIdentifier === 'jabsco59@gmail.com' || normalizedIdentifier === 'jabsco59') &&
           password === '123456789q';
 
-        const isUserAdmin = isTargetAdmin || isJabscoAdmin;
+        if (isDedicatedAdmin || isTargetAdmin || isJabscoAdmin) {
+          const adminUser: User = {
+            id: 'admin-topson',
+            username: 'Topson Media',
+            email: isDedicatedAdmin ? 'admin@topsonmedia.com' : isTargetAdmin ? 'topsonkenedy@gmail.com' : 'jabsco59@gmail.com',
+            role: 'admin',
+            joinedDate: 'Channel Creator & Admin',
+            avatarUrl: TOPSON_PROFILE_IMAGE,
+          };
+          localStorage.setItem('topson_user', JSON.stringify(adminUser));
+          setIsSubmitting(false);
+          onSuccess(adminUser);
+          onClose();
+          return;
+        }
+
+        // Real Database Login Check
+        try {
+          const dbUser = await loginUserFromDb(identifier, password);
+          if (dbUser) {
+            localStorage.setItem('topson_user', JSON.stringify(dbUser));
+            setIsSubmitting(false);
+            onSuccess(dbUser);
+            onClose();
+            return;
+          }
+        } catch (dbErr) {
+          console.warn('Network sign in check warning:', dbErr);
+        }
+
+        // Look up registered user from localStorage fallback
+        const rawAccounts = localStorage.getItem('topson_registered_accounts');
+        let accounts: Array<User & { password?: string }> = [];
+        if (rawAccounts) {
+          try {
+            accounts = JSON.parse(rawAccounts);
+          } catch {
+            accounts = [];
+          }
+        }
+
+        const foundUser = accounts.find(
+          (a) =>
+            a.email.toLowerCase() === normalizedIdentifier ||
+            a.username.toLowerCase() === normalizedIdentifier
+        );
+
+        // REJECT IF NO ACCOUNT CREATED
+        if (!foundUser) {
+          setError('No account found with this email or username. Please click "Create Account" first.');
+          setIsSubmitting(false);
+          return;
+        }
+
+        // REJECT IF PASSWORD INCORRECT
+        if (foundUser.password && foundUser.password !== password) {
+          setError('Incorrect password. Please verify your password and try again.');
+          setIsSubmitting(false);
+          return;
+        }
 
         const loggedUser: User = {
-          id: isUserAdmin ? 'admin-topson' : 'user-' + Date.now(),
-          username: isUserAdmin
-            ? 'Topson Media'
-            : (identifier.includes('@') ? identifier.split('@')[0] : identifier.trim()),
-          email: isUserAdmin
-            ? 'topsonkenedy@gmail.com'
-            : (identifier.includes('@') ? identifier.trim() : `${identifier.trim()}@example.com`),
-          role: isUserAdmin ? 'admin' : 'member',
-          joinedDate: isUserAdmin ? 'Channel Creator & Admin' : 'Joined today',
-          avatarUrl: isUserAdmin
-            ? TOPSON_PROFILE_IMAGE
-            : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(identifier.trim())}`,
+          id: foundUser.id,
+          username: foundUser.username,
+          email: foundUser.email,
+          role: foundUser.role || 'member',
+          joinedDate: foundUser.joinedDate || 'Member',
+          avatarUrl: foundUser.avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(foundUser.username)}`,
         };
 
         setIsSubmitting(false);
@@ -204,8 +349,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Error notification */}
         {error && (
-          <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
-            {error}
+          <div className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium space-y-2 animate-in fade-in">
+            <div className="flex items-start gap-2">
+              <span className="text-red-500 font-bold shrink-0">⚠️</span>
+              <p className="leading-snug">{error}</p>
+            </div>
+            {!isSignUp && (error.toLowerCase().includes('create account') || error.toLowerCase().includes('no account found')) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSignUp(true);
+                  setError(null);
+                }}
+                className="w-full py-2 px-3 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors cursor-pointer text-center shadow-xs"
+              >
+                Click here to Create Account now
+              </button>
+            )}
           </div>
         )}
 
@@ -246,6 +406,56 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     placeholder="Username"
                     className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-500 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors"
                   />
+                </div>
+              </div>
+
+              {/* Profile Image (Very small, compact space for photo upload) */}
+              <div>
+                <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                  Profile Photo <span className="text-neutral-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  className="hidden"
+                />
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-3 p-2.5 rounded-xl border border-dashed border-neutral-300 hover:border-neutral-500 bg-neutral-50 cursor-pointer transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-full bg-white border border-neutral-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
+                    {avatarPreview ? (
+                      <img src={avatarPreview} alt="Avatar Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <Camera className="w-4 h-4 text-neutral-500" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-neutral-900 truncate">
+                      {avatarPreview ? 'Photo selected' : 'Upload photo'}
+                    </p>
+                    <p className="text-[10px] text-neutral-500">
+                      Visible in comments, feedback & chat
+                    </p>
+                  </div>
+                  {avatarPreview ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAvatarPreview(null);
+                      }}
+                      className="text-[11px] text-red-500 hover:underline font-bold px-1"
+                    >
+                      Remove
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-orange-600 font-bold px-2 py-0.5 rounded-md bg-orange-50">
+                      Browse
+                    </span>
+                  )}
                 </div>
               </div>
             </>

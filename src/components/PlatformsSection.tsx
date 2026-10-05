@@ -62,7 +62,7 @@ export const PlatformsSection: React.FC = () => {
       description: 'Discussions & updates',
       handle: 'Etienne Topson Kenedy',
       stats: 'Connect',
-      url: 'https://facebook.com/topsonmedia',
+      url: 'https://www.facebook.com/etienne.topson.kenedy',
       cardHoverClasses:
         'hover:border-[#1877F2]/60 hover:shadow-[0_12px_30px_rgba(24,119,242,0.18)] hover:bg-blue-50/20',
       icon: (
