@@ -160,49 +160,57 @@ export const Hero: React.FC<HeroProps> = ({
 
           </div>
 
-          {/* Right Column: Welcome Image moving repeatedly top to bottom with breathing visibility */}
-          <div className="lg:col-span-6 flex justify-center">
-            <div className="animate-float-visibility w-full max-w-lg aspect-square rounded-3xl overflow-hidden bg-white border-2 border-neutral-200 shadow-2xl shadow-neutral-900/10 relative group transition-all duration-500">
+          {/* Right Column: Welcome Image inside Circular Frame */}
+          <div className="lg:col-span-6 flex justify-center items-center py-4">
+            <div className="relative w-full max-w-[320px] sm:max-w-[400px] lg:max-w-[440px] flex items-center justify-center">
               
-              {/* The Official Creator Portrait from the new link */}
-              <img
-                src={TOPSON_HERO_BADGE}
-                alt="Topson Media Welcome Image"
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-700"
-              />
+              {/* Ambient Glowing Background Aura */}
+              <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-orange-500/25 via-orange-400/10 to-transparent blur-2xl scale-110 pointer-events-none" />
 
-              {/* Ambient Glowing Ring Pulse Overlay */}
-              <div className="absolute inset-0 rounded-3xl pointer-events-none ring-1 ring-inset ring-orange-500/30" />
+              {/* Exact Circular Frame with Smooth Floating Animation */}
+              <div className="animate-float-visibility w-full aspect-square rounded-full overflow-hidden bg-white border-4 border-white shadow-2xl shadow-orange-500/15 ring-4 ring-orange-500/25 relative group transition-all duration-500">
+                
+                {/* The Official Creator Portrait directly from https://postimg.cc/MvKQDfYp */}
+                <img
+                  src="https://i.postimg.cc/Hsb9TQcX/profile.png"
+                  alt="Topson Media Creator Profile"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover object-center rounded-full group-hover:scale-105 transition-transform duration-700"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (!target.src.includes('profile.png')) {
+                      target.src = 'https://i.postimg.cc/Hsb9TQcX/profile.png';
+                    }
+                  }}
+                />
 
-              {/* Top Left Floating Tag: PHONE MASTERY */}
-              <div className="absolute top-5 left-5 bg-white/95 text-neutral-900 px-3 py-1.5 rounded-lg shadow-lg border border-neutral-200 flex items-center gap-2 text-[11px] font-bold backdrop-blur-sm">
+                {/* Subtle Inner Circular Highlight */}
+                <div className="absolute inset-0 rounded-full pointer-events-none ring-1 ring-inset ring-black/10" />
+              </div>
+
+              {/* Floating Badge Top-Left: PHONE MASTERY */}
+              <div className="absolute -top-3 left-0 sm:left-1 bg-white/95 text-neutral-900 px-3.5 py-1.5 rounded-full shadow-lg border border-neutral-200 flex items-center gap-2 text-[11px] font-bold backdrop-blur-sm z-10 transition-transform hover:scale-105">
                 <Smartphone className="w-3.5 h-3.5 text-orange-500" />
                 <span className="tracking-wide uppercase text-[10px]">PHONE MASTERY</span>
               </div>
 
-              {/* Top Right Tag: LEARN · CREATE · SHARE */}
-              <div className="absolute top-5 right-5 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-widest text-white shadow-sm">
+              {/* Floating Badge Top-Right: LEARN · CREATE · SHARE */}
+              <div className="absolute top-2 -right-2 sm:right-0 bg-neutral-900/85 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest text-white shadow-md border border-neutral-800 z-10">
                 LEARN · CREATE · SHARE
               </div>
 
-              {/* Bottom Right Floating Tag: NEW UPLOAD ▶ */}
+              {/* Floating Badge Bottom-Right: NEW UPLOAD ▶ */}
               <div
-                className="absolute bottom-6 right-5 bg-white text-neutral-900 px-3 py-1.5 rounded-lg shadow-lg border border-neutral-200 flex items-center gap-2 text-[11px] font-bold cursor-pointer hover:bg-orange-50 transition-colors"
+                className="absolute -bottom-3 right-2 sm:right-4 bg-white text-neutral-900 px-4 py-2 rounded-full shadow-xl border border-neutral-200 flex items-center gap-2 text-[11px] font-bold cursor-pointer hover:bg-orange-50 transition-all hover:scale-105 active:scale-95 z-10"
                 onClick={onWatchTutorials}
               >
                 <span className="text-orange-600 uppercase text-[10px] tracking-wider font-extrabold">NEW UPLOAD</span>
                 <Play className="w-3 h-3 fill-orange-600 text-orange-600" />
               </div>
 
-              {/* Bottom Left Corner: TOPSON MEDIA */}
-              <div className="absolute bottom-4 left-5 bg-black/70 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-bold tracking-widest uppercase text-white shadow-xs">
+              {/* Floating Badge Bottom-Left: TOPSON MEDIA */}
+              <div className="absolute bottom-5 -left-2 sm:left-0 bg-neutral-900/90 backdrop-blur-md px-3.5 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase text-white shadow-md border border-neutral-700/60 z-10">
                 TOPSON MEDIA
-              </div>
-
-              {/* Bottom Right Corner Text: EST. 2024 */}
-              <div className="absolute bottom-1 right-5 bg-black/70 backdrop-blur-md px-2 py-0.5 rounded text-[9px] font-bold tracking-widest uppercase text-white shadow-xs">
-                EST. 2024
               </div>
 
             </div>

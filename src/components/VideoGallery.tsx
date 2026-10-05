@@ -143,7 +143,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
 
     // Automatic YouTube thumbnail extraction when pasting a link in modal
     const autoYtThumb = uploadType === 'link' ? getYouTubeThumbnail(videoLink.trim()) : null;
-    const finalThumbnail = autoYtThumb || '/src/assets/images/thumb_ai_workflow_1790770861253.jpg';
+    const finalThumbnail = autoYtThumb || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
 
     const added: VideoItem = {
       id: 'vid-' + Date.now(),
