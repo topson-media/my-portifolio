@@ -37,5 +37,10 @@ service cloud.firestore {
       allow create, update: if true;
       allow delete: if false;
     }
+
+    // Pending email verifications for new account creation
+    match /pending_verifications/{verificationId} {
+      allow read, write: if true;
+    }
   }
 }

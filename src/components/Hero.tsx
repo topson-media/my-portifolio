@@ -160,32 +160,31 @@ export const Hero: React.FC<HeroProps> = ({
 
           </div>
 
-          {/* Right Column: Welcome Image inside Circular Frame */}
+          {/* Right Column: Welcome Image inside Circular Neon Glow Frame */}
           <div className="lg:col-span-6 flex justify-center items-center py-4">
             <div className="relative w-full max-w-[320px] sm:max-w-[400px] lg:max-w-[440px] flex items-center justify-center">
               
-              {/* Ambient Glowing Background Aura */}
-              <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-orange-500/25 via-orange-400/10 to-transparent blur-2xl scale-110 pointer-events-none" />
+              {/* Circular Neon Glow Aura */}
+              <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-orange-500/35 via-amber-500/20 to-orange-600/30 blur-2xl scale-110 pointer-events-none animate-pulse" />
 
-              {/* Exact Circular Frame with Smooth Floating Animation */}
-              <div className="animate-float-visibility w-full aspect-square rounded-full overflow-hidden bg-white border-4 border-white shadow-2xl shadow-orange-500/15 ring-4 ring-orange-500/25 relative group transition-all duration-500">
+              {/* Exact Circular Frame with Neon Glow and Smooth Floating Animation */}
+              <div className="animate-float-visibility w-full aspect-square rounded-full overflow-hidden bg-neutral-900 border-4 border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.45)] ring-4 ring-orange-500/30 relative group transition-all duration-500">
                 
-                {/* The Official Creator Portrait directly from https://postimg.cc/MvKQDfYp */}
+                {/* The Official Creator Portrait directly from local public PNG file */}
                 <img
-                  src="https://i.postimg.cc/Hsb9TQcX/profile.png"
-                  alt="Topson Media Creator Profile"
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover object-center rounded-full group-hover:scale-105 transition-transform duration-700"
+                  src="/welcome.png"
+                  alt="Topson Media Welcome Image"
+                  className="w-full h-full object-cover rounded-full"
                   onError={(e) => {
                     const target = e.currentTarget;
-                    if (!target.src.includes('profile.png')) {
+                    if (target.src !== 'https://i.postimg.cc/Hsb9TQcX/profile.png') {
                       target.src = 'https://i.postimg.cc/Hsb9TQcX/profile.png';
                     }
                   }}
                 />
 
                 {/* Subtle Inner Circular Highlight */}
-                <div className="absolute inset-0 rounded-full pointer-events-none ring-1 ring-inset ring-black/10" />
+                <div className="absolute inset-0 rounded-full pointer-events-none ring-1 ring-inset ring-orange-400/30" />
               </div>
 
               {/* Floating Badge Top-Left: PHONE MASTERY */}

@@ -37,6 +37,7 @@ import {
   deleteMessageFromDb,
   markMessagesReadInDb,
   testFirestoreConnection,
+  verifyConfirmationEmail,
 } from './services/firebase';
 
 export default function App() {
@@ -177,10 +178,41 @@ export default function App() {
     document.documentElement.classList.remove('dark');
   }, []);
 
-  // Sync hash changes with page state
+  // Toast notification for email verification success
+  const [verificationToast, setVerificationToast] = useState<{ show: boolean; message: string } | null>(null);
+
+  // Sync hash changes with page state & check incoming verification links
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace('#', '').toLowerCase();
+    const handleHashChange = async () => {
+      const rawHash = window.location.hash;
+
+      // Handle email verification links e.g. #verify?email=...&code=...&token=...
+      if (rawHash.startsWith('#verify')) {
+        const queryPart = rawHash.includes('?') ? rawHash.split('?')[1] : '';
+        const params = new URLSearchParams(queryPart);
+        const verifyEmail = params.get('email');
+        const verifyCode = params.get('code');
+        const verifyToken = params.get('token');
+
+        if (verifyEmail && (verifyCode || verifyToken)) {
+          const res = await verifyConfirmationEmail(verifyEmail, verifyToken || verifyCode || '');
+          if (res.success && res.user) {
+            setCurrentUser(res.user);
+            setAuthModalOpen(false);
+            setVerificationToast({
+              show: true,
+              message: `🎉 Real email verified! Welcome to Topson Media, ${res.user.username}! Your account is now active.`,
+            });
+            window.history.replaceState(null, '', window.location.pathname);
+            setTimeout(() => {
+              setVerificationToast(null);
+            }, 6500);
+            return;
+          }
+        }
+      }
+
+      const hash = rawHash.replace('#', '').toLowerCase();
       if (hash === 'admin') {
         setCurrentPage('admin');
         setActiveNav('admin');
@@ -188,6 +220,8 @@ export default function App() {
         setCurrentPage('home');
       }
     };
+
+    handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
@@ -590,6 +624,27 @@ export default function App() {
           activeNav={activeNav}
           onNavClick={handleNavClick}
         />
+
+        {/* Real Email Verification Success Toast */}
+        {verificationToast?.show && (
+          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-lg w-[92%] animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="p-4 rounded-2xl bg-emerald-600 text-white shadow-xl shadow-emerald-900/20 border border-emerald-500 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">🎉</span>
+                <p className="text-xs sm:text-sm font-bold leading-snug">
+                  {verificationToast.message}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVerificationToast(null)}
+                className="p-1 hover:bg-emerald-700 rounded-lg text-white/80 hover:text-white transition-colors cursor-pointer shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Main Content Area */}
         <main>
