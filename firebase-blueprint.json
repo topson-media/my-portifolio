@@ -74,6 +74,23 @@
         "createdAt": { "type": "number" }
       },
       "required": ["sender", "senderName", "text"]
+    },
+    "SupportDonation": {
+      "title": "SupportDonation",
+      "description": "Mobile Money support donations sent to 0794903078",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderPhone": { "type": "string" },
+        "recipientPhone": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "reference": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string", "enum": ["completed", "pending"] },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["senderPhone", "recipientPhone", "amount"]
     }
   },
   "firestore": {
@@ -92,6 +109,10 @@
     "/messages/{messageId}": {
       "schema": "Message",
       "description": "Live studio chat messages and one-on-one admin threads"
+    },
+    "/support_donations/{donationId}": {
+      "schema": "SupportDonation",
+      "description": "Direct Mobile Money support contributions to 0794903078"
     }
   }
 }
