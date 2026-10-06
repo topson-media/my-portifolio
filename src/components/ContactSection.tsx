@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Send, CheckCircle2, Mail, MessageSquare, Clock, Zap, ArrowRight, ShieldCheck, Sparkles, Phone } from 'lucide-react';
+import { Send, CheckCircle2, Mail, MessageSquare, Clock, Zap, ArrowRight, ShieldCheck, Sparkles, Phone, AlertCircle } from 'lucide-react';
 import { EmailMessage } from '../types';
+import { addContactSubmissionToDb } from '../services/firebase';
 
 interface ContactSectionProps {
   onJumpToChat: () => void;
@@ -13,32 +14,55 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat, on
   const [subject, setSubject] = useState('Question & Tutorial Request');
   const [message, setMessage] = useState('');
   const [sent, setSent] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastSubmittedName, setLastSubmittedName] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim() || !message.trim()) return;
+    e.stopPropagation();
+    if (!name.trim() || !email.trim() || !message.trim() || isSubmitting) return;
 
-    const emailMsg: EmailMessage = {
-      id: 'email-' + Date.now(),
-      senderName: name.trim(),
-      senderEmail: email.trim(),
-      subject: subject.trim(),
-      message: message.trim(),
-      timestamp: 'Just now',
-      replies: [],
-    };
+    // Retain current scroll position strictly to prevent any erratic page jumping
+    const lockedScrollY = window.scrollY;
+    setIsSubmitting(true);
+    const submittedName = name.trim();
+    setLastSubmittedName(submittedName);
 
-    if (onSendMessageToAdmin) {
-      onSendMessageToAdmin(emailMsg);
-    }
+    try {
+      // 1. Route and save directly into Firebase Firestore collection 'contact_submissions'
+      const newSubmission = await addContactSubmissionToDb({
+        senderName: submittedName,
+        senderEmail: email.trim(),
+        subject: subject.trim(),
+        message: message.trim(),
+      });
 
-    setSent(true);
-    setTimeout(() => {
+      // 2. Notify parent state so Admin Dashboard can see the submission instantly
+      if (onSendMessageToAdmin) {
+        onSendMessageToAdmin(newSubmission);
+      }
+
+      // 3. Clear inputs smoothly and show neon-orange success alert
       setName('');
       setEmail('');
       setMessage('');
-      setSent(false);
-    }, 3500);
+      setSent(true);
+
+      // Lock scroll position strictly on current viewport
+      requestAnimationFrame(() => {
+        if (Math.abs(window.scrollY - lockedScrollY) > 20) {
+          window.scrollTo({ top: lockedScrollY, behavior: 'instant' as ScrollBehavior });
+        }
+      });
+
+      setTimeout(() => {
+        setSent(false);
+      }, 7000);
+    } catch (err) {
+      console.error('Contact submission error:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -86,7 +110,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat, on
                   <a
                     href="mailto:topsonkenedy@gmail.com"
                     className="text-sm sm:text-base font-bold text-neutral-900 hover:text-orange-600 transition-colors block"
-                    title="Click to achieve inbox and mail Topson Media"
+                    title="Click to email Topson Media"
                   >
                     mail topson media
                   </a>
@@ -147,7 +171,10 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat, on
                   </p>
                   <button
                     type="button"
-                    onClick={onJumpToChat}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onJumpToChat();
+                    }}
                     className="inline-flex items-center gap-1.5 text-xs font-bold text-neutral-900 hover:text-orange-600 cursor-pointer transition-colors"
                   >
                     <span>Open chat studio</span>
@@ -175,35 +202,45 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat, on
 
           </div>
 
-          {/* Right Column (7 cols): Clean, Spacious Contact Card Form */}
+          {/* Right Column (7 cols): Clean, Spacious Contact Card Form with Stable Height */}
           <div className="lg:col-span-7">
-            <div className="rounded-3xl p-6 sm:p-10 bg-white border border-neutral-200 shadow-sm relative">
+            <div className="rounded-3xl p-6 sm:p-10 bg-white border border-neutral-200 shadow-sm relative min-h-[460px] flex flex-col justify-between">
               
-              <div className="mb-6 pb-4 border-b border-neutral-100 flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-xl font-bold text-neutral-900">
-                    Send an email message
-                  </h3>
-                  <p className="text-xs text-neutral-600 font-medium mt-0.5">
-                    Fill in your question and get a personalized reply directly to your inbox.
-                  </p>
-                </div>
-                <div className="w-9 h-9 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-              </div>
-
-              {sent ? (
-                <div className="py-12 text-center space-y-3 animate-in fade-in">
-                  <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-2xs">
-                    <CheckCircle2 className="w-7 h-7" />
+              <div>
+                <div className="mb-6 pb-4 border-b border-neutral-100 flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-neutral-900">
+                      Send an email message
+                    </h3>
+                    <p className="text-xs text-neutral-600 font-medium mt-0.5">
+                      Fill in your question and get a personalized reply directly to your inbox.
+                    </p>
                   </div>
-                  <h4 className="text-xl font-bold text-neutral-900">Message sent successfully!</h4>
-                  <p className="text-xs sm:text-sm text-neutral-600 font-medium max-w-sm mx-auto leading-relaxed">
-                    Thank you! Your question has been delivered. Topson will reply directly to your email address shortly.
-                  </p>
+                  <div className="w-9 h-9 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
                 </div>
-              ) : (
+
+                {/* Neon-Orange Success Alert Banner */}
+                {sent && (
+                  <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-orange-500/15 via-amber-500/10 to-orange-600/15 border-2 border-orange-500 text-neutral-900 shadow-[0_0_30px_rgba(249,115,22,0.35)] flex items-center gap-3.5 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="w-10 h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-orange-500/40">
+                      <CheckCircle2 className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-black text-neutral-900 flex items-center gap-2">
+                        <span>Message sent successfully!</span>
+                        <span className="px-2 py-0.5 rounded-full bg-orange-500 text-white text-[10px] font-extrabold uppercase tracking-wider">
+                          Delivered
+                        </span>
+                      </h4>
+                      <p className="text-xs text-neutral-700 mt-0.5 font-medium leading-relaxed">
+                        Thank you{lastSubmittedName ? `, ${lastSubmittedName}` : ''}! Your message has been saved to the database. Topson will reply directly to your email shortly.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {/* Name and Email 2-column input row */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -214,10 +251,10 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat, on
                       <input
                         type="text"
                         required
-                        value={name ?? ''}
+                        value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="Alex Morgan"
-                        className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors shadow-2xs"
+                        className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-2xs"
                       />
                     </div>
 
@@ -228,10 +265,10 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat, on
                       <input
                         type="email"
                         required
-                        value={email ?? ''}
+                        value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="alex@example.com"
-                        className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors shadow-2xs"
+                        className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-2xs"
                       />
                     </div>
                   </div>
@@ -242,9 +279,9 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat, on
                       Subject Topic
                     </label>
                     <select
-                      value={subject ?? 'Question & Tutorial Request'}
+                      value={subject}
                       onChange={(e) => setSubject(e.target.value)}
-                      className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors shadow-2xs cursor-pointer"
+                      className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-2xs cursor-pointer"
                     >
                       <option value="Question & Tutorial Request">Question & Tutorial Request</option>
                       <option value="Phone Optimization Help">Phone Optimization Help (Android / iPhone)</option>
@@ -262,28 +299,35 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onJumpToChat, on
                     <textarea
                       required
                       rows={4}
-                      value={message ?? ''}
+                      value={message}
                       onChange={(e) => setMessage(e.target.value)}
                       placeholder="Describe your tech issue, question, or tutorial request in detail..."
-                      className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors shadow-2xs"
+                      className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-2xs"
                     />
                   </div>
 
                   <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <button
                       type="submit"
-                      className="inline-flex items-center justify-center gap-2.5 px-8 py-3.5 text-xs sm:text-sm font-bold text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl transition-all shadow-sm active:scale-98 cursor-pointer"
+                      disabled={isSubmitting}
+                      className="inline-flex items-center justify-center gap-2.5 px-8 py-3.5 text-xs sm:text-sm font-bold text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl transition-all shadow-sm active:scale-98 cursor-pointer disabled:opacity-50"
                     >
-                      <span>Send email message</span>
-                      <Send className="w-4 h-4 text-orange-500" />
+                      {isSubmitting ? (
+                        <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <span>Send email message</span>
+                          <Send className="w-4 h-4 text-orange-500" />
+                        </>
+                      )}
                     </button>
 
                     <span className="text-[11px] text-neutral-500 font-medium">
-                      All communications are private & secure.
+                      Saved directly to database & sent to Topson Media.
                     </span>
                   </div>
                 </form>
-              )}
+              </div>
 
             </div>
           </div>

@@ -42,5 +42,10 @@ service cloud.firestore {
     match /pending_verifications/{verificationId} {
       allow read, write: if true;
     }
+
+    // Contact Form Submissions
+    match /contact_submissions/{submissionId} {
+      allow read, create, update, delete: if true;
+    }
   }
 }

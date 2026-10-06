@@ -22,8 +22,6 @@ import {
   registerUserInDb,
   loginUserFromDb,
   validateRealEmail,
-  sendConfirmationEmailToUser,
-  verifyConfirmationEmail,
 } from '../services/firebase';
 
 interface AuthModalProps {
@@ -40,7 +38,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   initialMode = 'signin',
 }) => {
   const [isSignUp, setIsSignUp] = useState(initialMode === 'signup');
-  const [step, setStep] = useState<'form' | 'verify'>('form');
   const [identifier, setIdentifier] = useState(''); // Email or Username for Login
   const [email, setEmail] = useState('');           // For Register
   const [username, setUsername] = useState('');     // For Register
@@ -51,33 +48,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Email Confirmation states
-  const [confirmationCode, setConfirmationCode] = useState('');
-  const [sentCode, setSentCode] = useState('');
-  const [sentToken, setSentToken] = useState('');
-  const [verificationLink, setVerificationLink] = useState('');
-  const [copiedLink, setCopiedLink] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [pendingUser, setPendingUser] = useState<User | null>(null);
-  const [pendingPassword, setPendingPassword] = useState('');
-  const [verificationSuccess, setVerificationSuccess] = useState(false);
-
   useEffect(() => {
     setIsSignUp(initialMode === 'signup');
-    setStep('form');
     setError(null);
-    setConfirmationCode('');
-    setVerificationSuccess(false);
-    setCopiedLink(false);
   }, [initialMode, isOpen]);
-
-  // Cooldown timer for Resend Confirmation Email
-  useEffect(() => {
-    if (resendCooldown > 0) {
-      const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [resendCooldown]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -134,136 +108,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Detect email provider for quick inbox open button
-  const getEmailProviderInfo = (userEmail: string) => {
-    const lower = userEmail.toLowerCase();
-    if (lower.includes('@gmail.com') || lower.includes('@googlemail.com')) {
-      return {
-        name: 'Gmail',
-        url: 'https://mail.google.com/mail/u/0/#search/Topson+Media',
-      };
-    }
-    if (
-      lower.includes('@outlook.com') ||
-      lower.includes('@hotmail.com') ||
-      lower.includes('@live.com') ||
-      lower.includes('@msn.com')
-    ) {
-      return {
-        name: 'Outlook',
-        url: 'https://outlook.live.com/mail/0/inbox',
-      };
-    }
-    if (lower.includes('@yahoo.com') || lower.includes('@ymail.com')) {
-      return {
-        name: 'Yahoo Mail',
-        url: 'https://mail.yahoo.com/',
-      };
-    }
-    return {
-      name: 'Mail App',
-      url: `mailto:${userEmail}`,
-    };
-  };
-
-  // Handle Resending Confirmation Code
-  const handleResendConfirmation = async () => {
-    if (resendCooldown > 0 || !pendingUser) return;
-    setError(null);
-    setIsSubmitting(true);
-    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-    setSentCode(newCode);
-    setResendCooldown(45);
-    const result = await sendConfirmationEmailToUser(
-      pendingUser.email,
-      pendingUser.username,
-      newCode,
-      pendingUser,
-      pendingPassword
-    );
-    setVerificationLink(result.link);
-    setSentToken(result.token);
-    setIsSubmitting(false);
-  };
-
-  // Step 2: Verify confirmation code and create real verified account in database
-  const handleVerifyConfirmationCode = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!confirmationCode.trim()) {
-      setError('Please enter the 6-digit confirmation code sent to your email.');
-      return;
-    }
-
-    if (!pendingUser) return;
-
-    setError(null);
-    setIsSubmitting(true);
-
-    try {
-      const verifyRes = await verifyConfirmationEmail(pendingUser.email, confirmationCode.trim());
-
-      if (!verifyRes.success || !verifyRes.user) {
-        setError(
-          verifyRes.error ||
-            'Incorrect confirmation code. Please check your email inbox and enter the 6-digit code.'
-        );
-        setIsSubmitting(false);
-        return;
-      }
-
-      setVerificationSuccess(true);
-      setTimeout(() => {
-        setIsSubmitting(false);
-        onSuccess(verifyRes.user!);
-        onClose();
-      }, 700);
-    } catch (err) {
-      console.error('Account creation error:', err);
-      setError('Failed to activate account. Please check your code and try again.');
-      setIsSubmitting(false);
-      setVerificationSuccess(false);
-    }
-  };
-
-  // Handle direct link verification
-  const handleInstantLinkVerification = async () => {
-    if (!pendingUser) return;
-    setError(null);
-    setIsSubmitting(true);
-
-    try {
-      const verifyRes = await verifyConfirmationEmail(
-        pendingUser.email,
-        sentToken || sentCode
-      );
-
-      if (!verifyRes.success || !verifyRes.user) {
-        setError(verifyRes.error || 'Failed to verify email via link.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      setVerificationSuccess(true);
-      setTimeout(() => {
-        setIsSubmitting(false);
-        onSuccess(verifyRes.user!);
-        onClose();
-      }, 700);
-    } catch (err) {
-      console.error('Link activation error:', err);
-      setError('Verification link error. Please try again.');
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleCopyLink = () => {
-    if (!verificationLink) return;
-    navigator.clipboard.writeText(verificationLink);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
-  };
-
-  // Step 1: Handle registration submit OR sign in submit
+  // Handle registration submit OR sign in submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -277,7 +122,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         return;
       }
 
-      // 2. Real Email Verification: Validate format, domain & reject fake/disposable providers
+      // 2. Real Email Verification: Validate format & domain
       const emailCheck = validateRealEmail(email);
       if (!emailCheck.valid) {
         setError(
@@ -341,29 +186,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username.trim())}`),
       };
 
-      // 5. Generate Real Confirmation Code and send confirmation email & link
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setSentCode(code);
-      setPendingUser(newUser);
-      setPendingPassword(password);
-      setResendCooldown(45);
-
       try {
-        const dispatchRes = await sendConfirmationEmailToUser(
-          lowerEmail,
-          username.trim(),
-          code,
-          newUser,
-          password
-        );
-        setVerificationLink(dispatchRes.link);
-        setSentToken(dispatchRes.token);
-      } catch (sendErr) {
-        console.warn('Confirmation dispatch error:', sendErr);
-      }
+        // Direct Account Creation (Verifications Removed): Save to Cloud Firestore & local persistent storage
+        await registerUserInDb(newUser, password);
 
-      setIsSubmitting(false);
-      setStep('verify');
+        accounts.push({ ...newUser, password });
+        localStorage.setItem('topson_registered_accounts', JSON.stringify(accounts));
+        localStorage.setItem('topson_user', JSON.stringify(newUser));
+
+        setIsSubmitting(false);
+        onSuccess(newUser);
+        onClose();
+      } catch (regErr) {
+        console.error('Account creation error:', regErr);
+        setError('Failed to create account. Please try again.');
+        setIsSubmitting(false);
+      }
     } else {
       // SIGN IN FLOW: Check if entered password is true
       if (!identifier.trim() || !password.trim()) {
@@ -428,441 +266,270 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        {/* ================================================================= */}
-        {/* STEP 2: EMAIL CONFIRMATION VERIFICATION SCREEN                    */}
-        {/* ================================================================= */}
-        {step === 'verify' && pendingUser ? (
-          <div className="space-y-4 animate-in fade-in">
-            {/* Back button */}
+        <div>
+          {/* Header */}
+          <div className="text-center mb-6">
+            <div className="mx-auto w-12 h-12 rounded-2xl bg-orange-500/10 border border-orange-500/25 flex items-center justify-center mb-3 text-orange-500 shadow-sm">
+              <Lock className="w-6 h-6" />
+            </div>
+            <h2 id="auth-modal-title" className="text-2xl font-black tracking-tight text-neutral-900">
+              {isSignUp ? 'Join Topson Media' : 'Welcome Back'}
+            </h2>
+            <p className="text-xs text-neutral-600 mt-1 font-medium">
+              {isSignUp
+                ? 'Create your free account instantly and join the live studio stream'
+                : 'Enter your credentials to sign into your verified account'}
+            </p>
+          </div>
+
+          {/* Tab switch */}
+          <div className="grid grid-cols-2 p-1 mb-6 rounded-xl bg-neutral-100 border border-neutral-200 text-xs font-bold">
             <button
               type="button"
               onClick={() => {
-                setStep('form');
+                setIsSignUp(false);
                 setError(null);
               }}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-neutral-600 hover:text-neutral-900 cursor-pointer"
+              className={`py-2.5 rounded-lg transition-all cursor-pointer ${
+                !isSignUp
+                  ? 'bg-white text-orange-600 shadow-xs'
+                  : 'text-neutral-600 hover:text-neutral-950'
+              }`}
             >
-              <ArrowLeft className="w-4 h-4 text-orange-500" />
-              <span>Back to Edit Details</span>
+              Sign In
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSignUp(true);
+                setError(null);
+              }}
+              className={`py-2.5 rounded-lg transition-all cursor-pointer ${
+                isSignUp
+                  ? 'bg-white text-orange-600 shadow-xs'
+                  : 'text-neutral-600 hover:text-neutral-950'
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
 
-            {/* Header Icon */}
-            <div className="text-center">
-              <div className="mx-auto w-12 h-12 rounded-2xl bg-orange-500/10 border border-orange-500/25 flex items-center justify-center mb-2.5 text-orange-500 shadow-sm animate-pulse">
-                <Mail className="w-6 h-6" />
-              </div>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-neutral-900">
-                Confirm Your Email
-              </h2>
-              <p className="text-xs text-neutral-600 mt-1 font-medium leading-relaxed">
-                We sent a confirmation link & 6-digit code to verify this is your real email before creating your account.
-              </p>
-            </div>
-
-            {/* Target Email Box */}
-            <div className="p-3 rounded-2xl bg-orange-50/70 border border-orange-200/80 flex items-center justify-between gap-2 shadow-2xs">
-              <div className="flex items-center gap-2 min-w-0">
-                <Mail className="w-4 h-4 text-orange-500 shrink-0" />
-                <span className="font-bold text-xs sm:text-sm text-neutral-900 truncate">
-                  {pendingUser.email}
-                </span>
-              </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 shrink-0 border border-emerald-200 flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                Real Email
-              </span>
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-start gap-2 animate-in fade-in">
+          {/* Error notification */}
+          {error && (
+            <div className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium space-y-2 animate-in fade-in">
+              <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                 <p className="leading-snug">{error}</p>
               </div>
-            )}
-
-            {/* Verification Code Form */}
-            <form onSubmit={handleVerifyConfirmationCode} className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-bold text-neutral-800 mb-1 text-center">
-                  Enter 6-Digit Confirmation Code
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  autoFocus
-                  value={confirmationCode}
-                  onChange={(e) => {
-                    setConfirmationCode(e.target.value.replace(/\D/g, ''));
-                    setError(null);
-                  }}
-                  placeholder="• • • • • •"
-                  className="w-full text-center text-2xl font-black tracking-[0.35em] py-2.5 rounded-xl bg-neutral-50 border border-neutral-300 text-neutral-900 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all font-mono shadow-2xs"
-                />
-              </div>
-
-              {/* Quick Actions & Links */}
-              <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 text-xs space-y-2">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-neutral-500 font-medium">Confirmation Link:</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleCopyLink}
-                      className="font-bold text-orange-600 hover:text-orange-700 inline-flex items-center gap-1 cursor-pointer"
-                    >
-                      <Copy className="w-3 h-3" />
-                      {copiedLink ? 'Copied!' : 'Copy Link'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleInstantLinkVerification}
-                      className="font-bold text-emerald-600 hover:text-emerald-700 inline-flex items-center gap-1 cursor-pointer"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      Click Link to Confirm
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-neutral-200/60">
-                  <span className="text-neutral-500 font-medium">Email Dispatch:</span>
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={getEmailProviderInfo(pendingUser.email).url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-bold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1"
-                    >
-                      <span>Open {getEmailProviderInfo(pendingUser.email).name}</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setConfirmationCode(sentCode);
-                        setError(null);
-                      }}
-                      className="font-mono font-bold text-orange-600 bg-orange-100 hover:bg-orange-200 px-1.5 py-0.5 rounded text-[11px] cursor-pointer"
-                      title="Auto-fill sent code"
-                    >
-                      Fill Code: {sentCode}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Submit Verification button */}
-              <button
-                type="submit"
-                disabled={isSubmitting || confirmationCode.length < 6}
-                className="w-full py-3 px-4 font-bold text-sm text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 rounded-xl shadow-lg shadow-orange-500/25 active:scale-98 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isSubmitting ? (
-                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : verificationSuccess ? (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Real Email Verified! Creating Account...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Verify Real Email & Create Account</span>
-                  </>
-                )}
-              </button>
-
-              {/* Resend button */}
-              <div className="text-center pt-0.5">
+              {!isSignUp && (error.toLowerCase().includes('create account') || error.toLowerCase().includes('no account found')) && (
                 <button
                   type="button"
-                  disabled={resendCooldown > 0 || isSubmitting}
-                  onClick={handleResendConfirmation}
-                  className="text-xs font-bold text-neutral-600 hover:text-orange-600 disabled:opacity-50 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                  onClick={() => {
+                    if (identifier.includes('@')) {
+                      setEmail(identifier);
+                    } else {
+                      setUsername(identifier);
+                    }
+                    setIsSignUp(true);
+                    setError(null);
+                  }}
+                  className="w-full py-2 px-3 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors cursor-pointer text-center shadow-xs"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
-                  <span>
-                    {resendCooldown > 0
-                      ? `Resend confirmation in ${resendCooldown}s`
-                      : 'Resend confirmation email'}
-                  </span>
+                  Click here to Create Account now
                 </button>
-              </div>
-            </form>
-          </div>
-        ) : (
-          /* ================================================================= */
-          /* STEP 1: INITIAL FORM (SIGN IN OR CREATE ACCOUNT)                 */
-          /* ================================================================= */
-          <div>
-            {/* Header */}
-            <div className="text-center mb-6">
-              <div className="mx-auto w-12 h-12 rounded-2xl bg-orange-500/10 border border-orange-500/25 flex items-center justify-center mb-3 text-orange-500 shadow-sm">
-                <Lock className="w-6 h-6" />
-              </div>
-              <h2 id="auth-modal-title" className="text-2xl font-black tracking-tight text-neutral-900">
-                {isSignUp ? 'Join Topson Media' : 'Welcome Back'}
-              </h2>
-              <p className="text-xs text-neutral-600 mt-1 font-medium">
-                {isSignUp
-                  ? 'Enter your real email to receive your confirmation link and create your account'
-                  : 'Enter your credentials to sign into your verified account'}
-              </p>
+              )}
             </div>
+          )}
 
-            {/* Tab switch */}
-            <div className="grid grid-cols-2 p-1 mb-6 rounded-xl bg-neutral-100 border border-neutral-200 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSignUp(false);
-                  setError(null);
-                }}
-                className={`py-2.5 rounded-lg transition-all cursor-pointer ${
-                  !isSignUp
-                    ? 'bg-white text-orange-600 shadow-xs'
-                    : 'text-neutral-600 hover:text-neutral-950'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSignUp(true);
-                  setError(null);
-                }}
-                className={`py-2.5 rounded-lg transition-all cursor-pointer ${
-                  isSignUp
-                    ? 'bg-white text-orange-600 shadow-xs'
-                    : 'text-neutral-600 hover:text-neutral-950'
-                }`}
-              >
-                Create Account
-              </button>
-            </div>
-
-            {/* Error notification */}
-            {error && (
-              <div className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium space-y-2 animate-in fade-in">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                  <p className="leading-snug">{error}</p>
-                </div>
-                {!isSignUp && (error.toLowerCase().includes('create account') || error.toLowerCase().includes('no account found')) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (identifier.includes('@')) {
-                        setEmail(identifier);
-                      } else {
-                        setUsername(identifier);
-                      }
-                      setIsSignUp(true);
-                      setError(null);
-                    }}
-                    className="w-full py-2 px-3 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors cursor-pointer text-center shadow-xs"
-                  >
-                    Click here to Create Account now
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {isSignUp ? (
-                <>
-                  {/* Registration: Email (Real Email Check Required) */}
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-800 mb-1.5">
-                      Real Email Address <span className="text-orange-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3.5 top-3 w-4 h-4 text-neutral-400" />
-                      <input
-                        type="email"
-                        required
-                        value={email}
-                        onChange={(e) => {
-                          setEmail(e.target.value);
-                          setError(null);
-                        }}
-                        placeholder="e.g. yourname@gmail.com"
-                        className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-500 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors"
-                      />
-                    </div>
-                    <p className="text-[10px] text-neutral-500 mt-1">
-                      A confirmation email and verification link will be sent to check if this is your real address.
-                    </p>
-                  </div>
-
-                  {/* Registration: Username */}
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-800 mb-1.5">
-                      Username <span className="text-orange-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <UserIcon className="absolute left-3.5 top-3 w-4 h-4 text-neutral-400" />
-                      <input
-                        type="text"
-                        required
-                        value={username}
-                        onChange={(e) => {
-                          setUsername(e.target.value);
-                          setError(null);
-                        }}
-                        placeholder="Choose a username"
-                        className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-500 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Profile Image (Optional upload) */}
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                      Profile Photo <span className="text-neutral-400 font-normal">(optional)</span>
-                    </label>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="hidden"
-                    />
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-3 p-2.5 rounded-xl border border-dashed border-neutral-300 hover:border-neutral-500 bg-neutral-50 cursor-pointer transition-colors"
-                    >
-                      <div className="w-9 h-9 rounded-full bg-white border border-neutral-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
-                        {avatarPreview ? (
-                          <img src={avatarPreview} alt="Avatar Preview" className="w-full h-full object-cover" />
-                        ) : (
-                          <Camera className="w-4 h-4 text-neutral-500" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-neutral-900 truncate">
-                          {avatarPreview ? 'Photo selected' : 'Upload photo'}
-                        </p>
-                        <p className="text-[10px] text-neutral-500">
-                          Visible in comments & live studio chat
-                        </p>
-                      </div>
-                      {avatarPreview ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setAvatarPreview(null);
-                          }}
-                          className="text-[11px] text-red-500 hover:underline font-bold px-1"
-                        >
-                          Remove
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-orange-600 font-bold px-2 py-0.5 rounded-md bg-orange-50">
-                          Browse
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                /* Login: [Email OR Username] */
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {isSignUp ? (
+              <>
+                {/* Registration: Email */}
                 <div>
                   <label className="block text-xs font-semibold text-neutral-800 mb-1.5">
-                    Email OR Username <span className="text-orange-500">*</span>
+                    Email Address <span className="text-orange-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-3 w-4 h-4 text-neutral-400" />
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setError(null);
+                      }}
+                      placeholder="e.g. yourname@gmail.com"
+                      className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-500 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* Registration: Username */}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-800 mb-1.5">
+                    Username <span className="text-orange-500">*</span>
                   </label>
                   <div className="relative">
                     <UserIcon className="absolute left-3.5 top-3 w-4 h-4 text-neutral-400" />
                     <input
                       type="text"
                       required
-                      value={identifier}
+                      value={username}
                       onChange={(e) => {
-                        setIdentifier(e.target.value);
+                        setUsername(e.target.value);
                         setError(null);
                       }}
-                      placeholder="Enter registered email or username"
+                      placeholder="Choose a username"
                       className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-500 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors"
                     />
                   </div>
                 </div>
-              )}
 
-              {/* Password with Show/Hide Toggle & Strict Verification Feedback */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-neutral-800">
-                    Password <span className="text-orange-500">*</span>
+                {/* Profile Image (Optional upload) */}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                    Profile Photo <span className="text-neutral-400 font-normal">(optional)</span>
                   </label>
-                  {!isSignUp && isPasswordError && (
-                    <span className="text-[11px] font-bold text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" /> Password is not true
-                    </span>
-                  )}
-                </div>
-                <div className="relative">
-                  <KeyRound
-                    className={`absolute left-3.5 top-3 w-4 h-4 transition-colors ${
-                      isPasswordError ? 'text-red-500' : 'text-neutral-400'
-                    }`}
-                  />
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                    className="hidden"
+                  />
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-3 p-2.5 rounded-xl border border-dashed border-neutral-300 hover:border-neutral-500 bg-neutral-50 cursor-pointer transition-colors"
+                  >
+                    <div className="w-9 h-9 rounded-full bg-white border border-neutral-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
+                      {avatarPreview ? (
+                        <img src={avatarPreview} alt="Avatar Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <Camera className="w-4 h-4 text-neutral-500" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-neutral-900 truncate">
+                        {avatarPreview ? 'Photo selected' : 'Upload photo'}
+                      </p>
+                      <p className="text-[10px] text-neutral-500">
+                        Visible in comments & live studio chat
+                      </p>
+                    </div>
+                    {avatarPreview ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAvatarPreview(null);
+                        }}
+                        className="text-[11px] text-red-500 hover:underline font-bold px-1"
+                      >
+                        Remove
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-orange-600 font-bold px-2 py-0.5 rounded-md bg-orange-50">
+                        Browse
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Login: [Email OR Username] */
+              <div>
+                <label className="block text-xs font-semibold text-neutral-800 mb-1.5">
+                  Email OR Username <span className="text-orange-500">*</span>
+                </label>
+                <div className="relative">
+                  <UserIcon className="absolute left-3.5 top-3 w-4 h-4 text-neutral-400" />
+                  <input
+                    type="text"
                     required
-                    value={password}
+                    value={identifier}
                     onChange={(e) => {
-                      setPassword(e.target.value);
+                      setIdentifier(e.target.value);
                       setError(null);
                     }}
-                    placeholder={isSignUp ? 'Create a secure password (min 6 chars)' : 'Enter true password'}
-                    className={`w-full pl-10 pr-10 py-2.5 text-sm rounded-xl bg-white border text-neutral-900 placeholder:text-neutral-500 focus:outline-none transition-all ${
-                      isPasswordError
-                        ? 'border-red-500 ring-2 ring-red-500/20'
-                        : 'border-neutral-300 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900'
-                    }`}
+                    placeholder="Enter registered email or username"
+                    className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-500 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-colors"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 p-1 text-neutral-400 hover:text-neutral-700 cursor-pointer"
-                    title={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
                 </div>
-                {!isSignUp ? (
-                  <p className="text-[10px] text-neutral-500 mt-1">
-                    Your password will be checked strictly against the verified account database.
-                  </p>
-                ) : (
-                  <p className="text-[10px] text-neutral-500 mt-1">
-                    At least 6 characters. You will use this to sign into your verified account.
-                  </p>
+              </div>
+            )}
+
+            {/* Password with Show/Hide Toggle & Strict Verification Feedback */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-neutral-800">
+                  Password <span className="text-orange-500">*</span>
+                </label>
+                {!isSignUp && isPasswordError && (
+                  <span className="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" /> Password is not true
+                  </span>
                 )}
               </div>
+              <div className="relative">
+                <KeyRound
+                  className={`absolute left-3.5 top-3 w-4 h-4 transition-colors ${
+                    isPasswordError ? 'text-red-500' : 'text-neutral-400'
+                  }`}
+                />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError(null);
+                  }}
+                  placeholder={isSignUp ? 'Create a secure password (min 6 chars)' : 'Enter true password'}
+                  className={`w-full pl-10 pr-10 py-2.5 text-sm rounded-xl bg-white border text-neutral-900 placeholder:text-neutral-500 focus:outline-none transition-all ${
+                    isPasswordError
+                      ? 'border-red-500 ring-2 ring-red-500/20'
+                      : 'border-neutral-300 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-2.5 p-1 text-neutral-400 hover:text-neutral-700 cursor-pointer"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {!isSignUp ? (
+                <p className="text-[10px] text-neutral-500 mt-1">
+                  Your password will be checked strictly against the verified account database.
+                </p>
+              ) : (
+                <p className="text-[10px] text-neutral-500 mt-1">
+                  At least 6 characters. You will use this password to sign into your account.
+                </p>
+              )}
+            </div>
 
-              {/* Submit button */}
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full mt-2 py-3 px-4 font-bold text-sm text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 rounded-xl shadow-lg shadow-orange-500/25 active:scale-98 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isSubmitting ? (
-                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    <span>{isSignUp ? 'Send Confirmation Email & Link' : 'Sign In'}</span>
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-        )}
+            {/* Submit button */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full mt-2 py-3 px-4 font-bold text-sm text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 rounded-xl shadow-lg shadow-orange-500/25 active:scale-98 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {isSubmitting ? (
+                <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  <span>{isSignUp ? 'Create Account Now' : 'Sign In'}</span>
+                </>
+              )}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

@@ -48,7 +48,7 @@ export const AdminChatDashboard: React.FC<AdminChatDashboardProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string>('all-public');
   const [replyText, setReplyText] = useState('');
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   // Group messages into distinct user conversations
@@ -151,9 +151,11 @@ export const AdminChatDashboard: React.FC<AdminChatDashboardProps> = ({
     }
   }, [selectedUserId, activeConversation, activeMessages, onMarkMessagesRead]);
 
-  // Scroll to bottom when conversation changes or new messages arrive
+  // Scroll to bottom of internal chat thread when conversation changes or new messages arrive
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatMessagesContainerRef.current) {
+      chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
+    }
   }, [activeMessages.length, selectedUserId]);
 
   // Send manual admin reply
@@ -190,22 +192,22 @@ export const AdminChatDashboard: React.FC<AdminChatDashboardProps> = ({
   return (
     <div className="rounded-3xl bg-white border border-neutral-200 shadow-sm overflow-hidden flex flex-col h-[750px] max-h-[85vh]">
       {/* Header bar */}
-      <div className="p-4 sm:p-5 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white flex flex-wrap items-center justify-between gap-4 border-b border-neutral-700">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/40 flex items-center justify-center text-orange-400">
-            <MessageSquare className="w-5 h-5" />
+      <div className="p-3 sm:p-3.5 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white flex flex-wrap items-center justify-between gap-3 border-b border-neutral-700">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-orange-500/20 border border-orange-500/40 flex items-center justify-center text-orange-400">
+            <MessageSquare className="w-4 h-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base sm:text-lg font-black text-white">
+              <h3 className="text-sm sm:text-base font-black text-white">
                 Admin Live Chat Dashboard
               </h3>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-bold border border-emerald-500/30 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 100% Admin Controlled
               </span>
             </div>
-            <p className="text-xs text-neutral-300 font-medium">
+            <p className="text-[11px] text-neutral-300 font-medium">
               Real-time one-on-one viewer messaging. Zero bots, zero AI logic.
             </p>
           </div>
@@ -404,10 +406,13 @@ export const AdminChatDashboard: React.FC<AdminChatDashboardProps> = ({
           </div>
 
           {/* Messages Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 custom-scrollbar bg-neutral-100/60">
+          <div
+            ref={chatMessagesContainerRef}
+            className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-2.5 custom-scrollbar bg-neutral-100/60 overscroll-contain"
+          >
             {activeMessages.length === 0 ? (
-              <div className="py-16 text-center text-neutral-500">
-                <MessageSquare className="w-10 h-10 text-neutral-300 mx-auto mb-2" />
+              <div className="py-14 text-center text-neutral-500">
+                <MessageSquare className="w-9 h-9 text-neutral-300 mx-auto mb-2" />
                 <p className="text-xs font-semibold text-neutral-700">No messages in this thread yet</p>
                 <p className="text-[11px] text-neutral-500 mt-0.5">
                   Type a custom message below to start a manual conversation with this user.
@@ -419,10 +424,10 @@ export const AdminChatDashboard: React.FC<AdminChatDashboardProps> = ({
                 return (
                   <div
                     key={msg.id}
-                    className={`flex items-start gap-2.5 ${isAdmin ? 'justify-end' : 'justify-start'}`}
+                    className={`flex items-start gap-2 ${isAdmin ? 'justify-end' : 'justify-start'}`}
                   >
                     {!isAdmin && (
-                      <div className="w-8 h-8 rounded-full bg-neutral-800 text-white text-[11px] font-bold flex items-center justify-center shrink-0 overflow-hidden shadow-2xs mt-0.5">
+                      <div className="w-7 h-7 rounded-full bg-neutral-800 text-white text-[10px] font-bold flex items-center justify-center shrink-0 overflow-hidden shadow-2xs mt-0.5">
                         {msg.avatarUrl ? (
                           <img src={msg.avatarUrl} alt={msg.senderName} className="w-full h-full object-cover" />
                         ) : (
@@ -432,14 +437,14 @@ export const AdminChatDashboard: React.FC<AdminChatDashboardProps> = ({
                     )}
 
                     <div
-                      className={`max-w-[78%] rounded-2xl p-3 shadow-2xs relative group ${
+                      className={`max-w-[78%] rounded-2xl p-2.5 shadow-2xs relative group ${
                         isAdmin
                           ? 'bg-neutral-900 text-white rounded-tr-xs'
                           : 'bg-white text-neutral-900 border border-neutral-200/90 rounded-tl-xs'
                       }`}
                     >
                       {/* Sender Name Bar */}
-                      <div className="flex items-center justify-between gap-3 mb-1">
+                      <div className="flex items-center justify-between gap-2.5 mb-1">
                         <span className={`text-[10px] font-bold ${isAdmin ? 'text-orange-400' : 'text-neutral-600'}`}>
                           {isAdmin ? 'Topson Media (You)' : msg.senderName}
                         </span>
@@ -462,7 +467,7 @@ export const AdminChatDashboard: React.FC<AdminChatDashboardProps> = ({
                       </div>
 
                       {/* Text */}
-                      <p className="text-xs sm:text-sm font-normal leading-relaxed whitespace-pre-wrap">
+                      <p className="text-xs font-normal leading-relaxed whitespace-pre-wrap">
                         {msg.text}
                       </p>
 
@@ -484,7 +489,7 @@ export const AdminChatDashboard: React.FC<AdminChatDashboardProps> = ({
                     </div>
 
                     {isAdmin && (
-                      <div className="w-8 h-8 rounded-full border border-orange-500 p-0.5 bg-white shrink-0 overflow-hidden shadow-2xs mt-0.5">
+                      <div className="w-7 h-7 rounded-full border border-orange-500 p-0.5 bg-white shrink-0 overflow-hidden shadow-2xs mt-0.5">
                         <img src={TOPSON_PROFILE_IMAGE} alt="Admin" className="w-full h-full object-cover rounded-full" />
                       </div>
                     )}
@@ -492,7 +497,6 @@ export const AdminChatDashboard: React.FC<AdminChatDashboardProps> = ({
                 );
               })
             )}
-            <div ref={chatBottomRef} />
           </div>
 
           {/* Quick Replies Helper Bar */}

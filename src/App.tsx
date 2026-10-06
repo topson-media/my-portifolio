@@ -38,6 +38,8 @@ import {
   markMessagesReadInDb,
   testFirestoreConnection,
   verifyConfirmationEmail,
+  subscribeToContactSubmissions,
+  replyToContactSubmissionInDb,
 } from './services/firebase';
 
 export default function App() {
@@ -149,7 +151,7 @@ export default function App() {
     return INITIAL_CHAT_MESSAGES;
   });
 
-  // Real-time Firestore Subscriptions for Videos, Feedbacks, and Messages
+  // Real-time Firestore Subscriptions for Videos, Feedbacks, Messages, and Contact Submissions
   useEffect(() => {
     const unsubVideos = subscribeToVideos((vids) => {
       setVideoList(vids);
@@ -166,16 +168,45 @@ export default function App() {
       localStorage.setItem('topson_chat_messages', JSON.stringify(msgs));
     });
 
+    const unsubContacts = subscribeToContactSubmissions((submissions) => {
+      if (submissions && submissions.length > 0) {
+        setEmailMessages(submissions);
+        localStorage.setItem('topson_email_messages', JSON.stringify(submissions));
+      }
+    });
+
     return () => {
       unsubVideos();
       unsubFeedbacks();
       unsubMessages();
+      unsubContacts();
     };
   }, []);
 
   // Ensure dark class is never present
   useEffect(() => {
     document.documentElement.classList.remove('dark');
+  }, []);
+
+  // FIX INITIAL LOAD ROUTING BUG:
+  // Ensure that when website loads or is refreshed, viewport strictly starts at the very top of Hero/Home
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+    const hash = window.location.hash.toLowerCase();
+    if (hash === '#admin') {
+      return;
+    }
+    // Clean any unwanted contact or other hash that would auto-scroll the page
+    if (hash && !hash.startsWith('#verify')) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+    const timer = setTimeout(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+    }, 50);
+    return () => clearTimeout(timer);
   }, []);
 
   // Toast notification for email verification success
@@ -239,6 +270,10 @@ export default function App() {
     ];
 
     const handleScroll = () => {
+      if (window.scrollY < 120) {
+        setActiveNav('home');
+        return;
+      }
       const scrollPos = window.scrollY + 220;
 
       for (let i = sections.length - 1; i >= 0; i--) {
@@ -402,8 +437,14 @@ export default function App() {
     ]);
   };
 
-  // Admin reply to inbound message (will send via email)
-  const handleReplyEmailMessage = (emailId: string, replyText: string) => {
+  // Admin reply to inbound message (will send via email & sync to Firestore)
+  const handleReplyEmailMessage = async (emailId: string, replyText: string) => {
+    try {
+      await replyToContactSubmissionInDb(emailId, replyText);
+    } catch (err) {
+      console.warn('Firestore replyToContactSubmission fallback:', err);
+    }
+
     setEmailMessages((prev) => {
       const updated = prev.map((msg) => {
         if (msg.id === emailId) {

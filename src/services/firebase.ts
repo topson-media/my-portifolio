@@ -15,7 +15,7 @@ import {
   getDocFromServer
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { VideoItem, FeedbackItem, ChatMessage, User } from '../types';
+import { VideoItem, FeedbackItem, ChatMessage, User, EmailMessage } from '../types';
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
 
 // Initialize Firebase App
@@ -229,7 +229,104 @@ export async function deleteMessageFromDb(messageId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// 4. USER AUTHENTICATION, EMAIL CONFIRMATION & DATABASE SESSIONS
+// 4. CONTACT FORM SUBMISSIONS (Firestore Collection: contact_submissions)
+// ---------------------------------------------------------------------------
+export function subscribeToContactSubmissions(callback: (submissions: EmailMessage[]) => void) {
+  try {
+    const q = query(collection(db, 'contact_submissions'), orderBy('createdAt', 'desc'));
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const submissions: EmailMessage[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          submissions.push({
+            id: docSnap.id,
+            senderName: data.senderName || '',
+            senderEmail: data.senderEmail || '',
+            subject: data.subject || '',
+            message: data.message || '',
+            timestamp: data.timestamp || 'Just now',
+            replies: Array.isArray(data.replies) ? data.replies : [],
+          });
+        });
+        callback(submissions);
+      },
+      (error) => {
+        console.warn('Firestore contact submissions fallback:', error);
+      }
+    );
+  } catch (e) {
+    console.error('Error setting up contact submissions listener:', e);
+    return () => {};
+  }
+}
+
+export async function addContactSubmissionToDb(submission: {
+  senderName: string;
+  senderEmail: string;
+  subject: string;
+  message: string;
+}): Promise<EmailMessage> {
+  const id = 'contact-' + Date.now();
+  const docRef = doc(db, 'contact_submissions', id);
+  const now = new Date();
+  const timestamp = now.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const newSubmission: EmailMessage = {
+    id,
+    senderName: submission.senderName.trim(),
+    senderEmail: submission.senderEmail.trim(),
+    subject: submission.subject.trim(),
+    message: submission.message.trim(),
+    timestamp,
+    replies: [],
+  };
+
+  await setDoc(docRef, {
+    ...newSubmission,
+    createdAt: Date.now(),
+  });
+
+  return newSubmission;
+}
+
+export async function replyToContactSubmissionInDb(submissionId: string, replyText: string): Promise<void> {
+  try {
+    const docRef = doc(db, 'contact_submissions', submissionId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const currentReplies = docSnap.data().replies || [];
+      const replyObj = {
+        id: 'rep-' + Date.now(),
+        text: replyText.trim(),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      await updateDoc(docRef, {
+        replies: [...currentReplies, replyObj],
+        updatedAt: Date.now(),
+      });
+    }
+  } catch (e) {
+    console.warn('Error replying to contact submission:', e);
+  }
+}
+
+export async function deleteContactSubmissionFromDb(submissionId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'contact_submissions', submissionId));
+  } catch (e) {
+    console.warn('Error deleting contact submission:', e);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 5. USER AUTHENTICATION & DATABASE SESSIONS
 // ---------------------------------------------------------------------------
 
 // List of disposable / fake email domains to reject in order to verify real emails
