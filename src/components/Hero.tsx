@@ -1,17 +1,19 @@
 import React from 'react';
-import { Play, ArrowRight, Smartphone, ArrowDown } from 'lucide-react';
+import { Play, ArrowRight, Smartphone, ArrowDown, Heart } from 'lucide-react';
 import { TOPSON_HERO_BADGE, TOPSON_PROFILE_IMAGE } from '../data/mockData';
 
 interface HeroProps {
   onWatchTutorials: () => void;
   onLiveChat: () => void;
   onExploreScroll: () => void;
+  onOpenSupport?: () => void;
 }
 
 export const Hero: React.FC<HeroProps> = ({
   onWatchTutorials,
   onLiveChat,
   onExploreScroll,
+  onOpenSupport,
 }) => {
   // Word arrays for word-by-word animation
   const kickerWords = ['THE', 'EVERYDAY', 'TECH', 'ADVANTAGE'];
@@ -102,7 +104,7 @@ export const Hero: React.FC<HeroProps> = ({
             </p>
 
             {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-4 pt-2">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-2">
               <button
                 type="button"
                 onClick={onWatchTutorials}
@@ -120,6 +122,17 @@ export const Hero: React.FC<HeroProps> = ({
                 <span>Live Chat</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
+
+              {onOpenSupport && (
+                <button
+                  type="button"
+                  onClick={onOpenSupport}
+                  className="inline-flex items-center gap-2 px-5 py-3.5 text-sm font-bold text-neutral-900 bg-amber-50 hover:bg-amber-100 border border-amber-300/80 active:scale-95 rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 cursor-pointer shadow-xs group"
+                >
+                  <Heart className="w-4 h-4 text-orange-500 fill-orange-500 group-hover:scale-110 transition-transform" />
+                  <span>Support (0794903078)</span>
+                </button>
+              )}
             </div>
 
             {/* Bottom-left micro badge */}

@@ -47,5 +47,10 @@ service cloud.firestore {
     match /contact_submissions/{submissionId} {
       allow read, create, update, delete: if true;
     }
+
+    // Support & Mobile Money Donations to 0794903078
+    match /support_donations/{donationId} {
+      allow read, create, update, delete: if true;
+    }
   }
 }

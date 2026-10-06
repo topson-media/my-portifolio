@@ -115,27 +115,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsSubmitting(true);
 
     if (isSignUp) {
-      // 1. Mandatory Fields Validation
+      // Direct Account Creation without Blocking Verifications
       if (!email.trim() || !username.trim() || !password.trim()) {
         setError('Email, Username, and Password are all required.');
         setIsSubmitting(false);
         return;
       }
 
-      // 2. Real Email Verification: Validate format & domain
-      const emailCheck = validateRealEmail(email);
-      if (!emailCheck.valid) {
-        setError(
-          emailCheck.reason ||
-            'Please enter a real, valid email address (e.g. name@gmail.com).'
-        );
-        setIsSubmitting(false);
-        return;
-      }
-
-      // 3. Password Length
-      if (password.length < 6) {
-        setError('Password must be at least 6 characters long.');
+      // Basic syntax check only (no domain/DNS/disposable verification blocks)
+      if (!email.includes('@')) {
+        setError('Please enter a valid email format (e.g. yourname@gmail.com).');
         setIsSubmitting(false);
         return;
       }
@@ -486,7 +475,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     setPassword(e.target.value);
                     setError(null);
                   }}
-                  placeholder={isSignUp ? 'Create a secure password (min 6 chars)' : 'Enter true password'}
+                  placeholder={isSignUp ? 'Create your password' : 'Enter true password'}
                   className={`w-full pl-10 pr-10 py-2.5 text-sm rounded-xl bg-white border text-neutral-900 placeholder:text-neutral-500 focus:outline-none transition-all ${
                     isPasswordError
                       ? 'border-red-500 ring-2 ring-red-500/20'
@@ -504,11 +493,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
               {!isSignUp ? (
                 <p className="text-[10px] text-neutral-500 mt-1">
-                  Your password will be checked strictly against the verified account database.
+                  Your password will be checked against the account database.
                 </p>
               ) : (
                 <p className="text-[10px] text-neutral-500 mt-1">
-                  At least 6 characters. You will use this password to sign into your account.
+                  You will use this password to sign into your account anytime.
                 </p>
               )}
             </div>

@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
-import { Mail, Phone, Check, Copy } from 'lucide-react';
+import { Mail, Phone, Check, Copy, Heart } from 'lucide-react';
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
 
-export const Footer: React.FC = () => {
+interface FooterProps {
+  onOpenSupport?: () => void;
+}
+
+export const Footer: React.FC<FooterProps> = ({ onOpenSupport }) => {
   const [copiedType, setCopiedType] = useState<string | null>(null);
 
   const handleCopy = (text: string, type: string) => {
@@ -175,6 +179,18 @@ export const Footer: React.FC = () => {
                   <span className="text-[10px] text-neutral-500 font-medium">WhatsApp & Call</span>
                 </div>
               </a>
+
+              {/* Support Channel Button */}
+              {onOpenSupport && (
+                <button
+                  type="button"
+                  onClick={onOpenSupport}
+                  className="mt-1 w-full px-3 py-2 rounded-xl bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-all font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-2xs group"
+                >
+                  <Heart className="w-3.5 h-3.5 fill-orange-500 text-orange-500 group-hover:scale-110 transition-transform" />
+                  <span>Support Channel (0794903078)</span>
+                </button>
+              )}
 
             </div>
           </div>

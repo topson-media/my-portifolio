@@ -711,3 +711,53 @@ export async function loginUserFromDb(identifier: string, password?: string): Pr
 
   return { success: false, error: 'not_found' };
 }
+
+// ---------------------------------------------------------------------------
+// 6. SUPPORT & MOBILE MONEY DONATIONS (Target: 0794903078 - Topson Media)
+// ---------------------------------------------------------------------------
+export interface SupportDonation {
+  id: string;
+  senderPhone: string;
+  recipientPhone: string;
+  amount: number;
+  currency: string;
+  reference: string;
+  timestamp: string;
+  status: 'completed' | 'pending';
+}
+
+export async function addSupportDonationToDb(donation: Omit<SupportDonation, 'id' | 'recipientPhone' | 'reference' | 'timestamp' | 'status'>): Promise<SupportDonation> {
+  const id = 'sup-' + Date.now();
+  const refCode = 'MOMO-' + Math.floor(100000 + Math.random() * 900000);
+  const now = new Date();
+  const timestamp = now.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const record: SupportDonation = {
+    id,
+    senderPhone: donation.senderPhone.trim(),
+    recipientPhone: '0794903078',
+    amount: donation.amount,
+    currency: donation.currency || 'RWF',
+    reference: refCode,
+    timestamp,
+    status: 'completed',
+  };
+
+  try {
+    const docRef = doc(db, 'support_donations', id);
+    await setDoc(docRef, {
+      ...record,
+      createdAt: Date.now(),
+    });
+  } catch (err) {
+    console.warn('Firestore addSupportDonation fallback:', err);
+  }
+
+  return record;
+}
+

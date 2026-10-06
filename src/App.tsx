@@ -15,6 +15,7 @@ import { ContactSection } from './components/ContactSection';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Footer } from './components/Footer';
 import { AuthModal } from './components/AuthModal';
+import { SupportModal } from './components/SupportModal';
 import {
   INITIAL_VIDEOS,
   INITIAL_FEEDBACKS,
@@ -72,6 +73,7 @@ export default function App() {
 
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup' | 'admin'>('signin');
+  const [supportModalOpen, setSupportModalOpen] = useState<boolean>(false);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -664,6 +666,7 @@ export default function App() {
           matchingCount={matchingCount}
           activeNav={activeNav}
           onNavClick={handleNavClick}
+          onOpenSupport={() => setSupportModalOpen(true)}
         />
 
         {/* Real Email Verification Success Toast */}
@@ -700,6 +703,7 @@ export default function App() {
                   const el = document.getElementById('about');
                   el?.scrollIntoView({ behavior: 'smooth' });
                 }}
+                onOpenSupport={() => setSupportModalOpen(true)}
               />
 
               {/* About / Mission Section */}
@@ -778,7 +782,7 @@ export default function App() {
       </div>
 
       {/* Global Footer */}
-      <Footer />
+      <Footer onOpenSupport={() => setSupportModalOpen(true)} />
 
       {/* Glassmorphic Auth Modal */}
       <AuthModal
@@ -786,6 +790,12 @@ export default function App() {
         onClose={() => setAuthModalOpen(false)}
         onSuccess={handleAuthSuccess}
         initialMode={authMode}
+      />
+
+      {/* Mobile Money Direct Support Modal (Recipient: 0794903078) */}
+      <SupportModal
+        isOpen={supportModalOpen}
+        onClose={() => setSupportModalOpen(false)}
       />
     </div>
   );

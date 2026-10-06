@@ -15,7 +15,8 @@ import {
   Trash2,
   Edit3,
   Save,
-  Check
+  Check,
+  BookOpen
 } from 'lucide-react';
 import { VideoItem, User } from '../types';
 import { getYouTubeThumbnail } from '../utils/youtubeHelper';
@@ -483,10 +484,32 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
 
                     {/* Metadata & Title */}
                     <div className="p-3 sm:p-3.5">
-                      <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-semibold mb-1">
-                        <span>{video.date}</span>
-                        <span>·</span>
-                        <span>{video.views}</span>
+                      <div className="flex items-center justify-between gap-1 text-[10px] text-neutral-500 font-semibold mb-1.5">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span>{video.date}</span>
+                          <span>·</span>
+                          <span>{video.views}</span>
+                        </div>
+                        <span
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 font-bold text-[9px] border border-orange-200/50 shrink-0"
+                          title="Estimated reading time"
+                        >
+                          <BookOpen className="w-2.5 h-2.5" />
+                          <span>
+                            {Math.max(
+                              1,
+                              Math.min(
+                                6,
+                                Math.ceil(
+                                  ((video.title || '').split(/\s+/).length +
+                                    ((video.description || '').split(/\s+/).length || 20)) /
+                                    35
+                                )
+                              )
+                            )}{' '}
+                            min read
+                          </span>
+                        </span>
                       </div>
 
                       <h3
