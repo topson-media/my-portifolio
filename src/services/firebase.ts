@@ -15,7 +15,7 @@ import {
   getDocFromServer
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { VideoItem, FeedbackItem, ChatMessage, User, EmailMessage } from '../types';
+import { VideoItem, FeedbackItem, ChatMessage, User, EmailMessage, VideoComment } from '../types';
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
 
 // Initialize Firebase App
@@ -36,7 +36,7 @@ export async function testFirestoreConnection(): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
-// 1. VIDEOS (Real-time Database CRUD)
+// 1. VIDEOS (Real-time Database CRUD & Engagement)
 // ---------------------------------------------------------------------------
 export function subscribeToVideos(callback: (videos: VideoItem[]) => void) {
   try {
@@ -53,6 +53,7 @@ export function subscribeToVideos(callback: (videos: VideoItem[]) => void) {
             category: data.category || 'Phone Mastery',
             duration: data.duration || '10:00',
             views: data.views || '0 views',
+            viewsCount: typeof data.viewsCount === 'number' ? data.viewsCount : 0,
             date: data.date || 'Just now',
             thumbnail: data.thumbnail || '',
             youtubeId: data.youtubeId,
@@ -60,6 +61,9 @@ export function subscribeToVideos(callback: (videos: VideoItem[]) => void) {
             sourceType: data.sourceType || 'link',
             description: data.description || '',
             tags: Array.isArray(data.tags) ? data.tags : [],
+            likes: typeof data.likes === 'number' ? data.likes : 0,
+            likedBy: Array.isArray(data.likedBy) ? data.likedBy : [],
+            comments: Array.isArray(data.comments) ? data.comments : [],
           });
         });
         callback(videos);
@@ -78,6 +82,10 @@ export async function addVideoToDb(video: VideoItem): Promise<void> {
   const docRef = doc(db, 'videos', video.id);
   await setDoc(docRef, {
     ...video,
+    viewsCount: video.viewsCount || 0,
+    likes: video.likes || 0,
+    likedBy: video.likedBy || [],
+    comments: video.comments || [],
     createdAt: Date.now(),
   });
 }
@@ -89,6 +97,7 @@ export async function updateVideoInDb(video: VideoItem): Promise<void> {
     category: video.category,
     duration: video.duration,
     views: video.views,
+    viewsCount: video.viewsCount ?? 0,
     thumbnail: video.thumbnail,
     videoUrl: video.videoUrl,
     sourceType: video.sourceType,
@@ -96,6 +105,72 @@ export async function updateVideoInDb(video: VideoItem): Promise<void> {
     tags: video.tags,
     updatedAt: Date.now(),
   });
+}
+
+export async function incrementVideoViewsInDb(videoId: string): Promise<number> {
+  try {
+    const docRef = doc(db, 'videos', videoId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      const current = typeof data.viewsCount === 'number' ? data.viewsCount : 0;
+      const next = current + 1;
+      const formatted = next >= 1000 ? `${(next / 1000).toFixed(1)}K views` : `${next} views`;
+      await updateDoc(docRef, {
+        viewsCount: next,
+        views: formatted,
+      });
+      return next;
+    }
+  } catch (err) {
+    console.warn('Failed to increment views in DB:', err);
+  }
+  return 1;
+}
+
+export async function toggleLikeVideoInDb(videoId: string, userId: string): Promise<{ liked: boolean; count: number }> {
+  try {
+    const docRef = doc(db, 'videos', videoId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      const currentLikes = typeof data.likes === 'number' ? data.likes : 0;
+      const likedBy: string[] = Array.isArray(data.likedBy) ? data.likedBy : [];
+      const hasLiked = likedBy.includes(userId);
+
+      const nextLikedBy = hasLiked ? likedBy.filter((id) => id !== userId) : [...likedBy, userId];
+      const nextCount = Math.max(0, hasLiked ? currentLikes - 1 : currentLikes + 1);
+
+      await updateDoc(docRef, {
+        likes: nextCount,
+        likedBy: nextLikedBy,
+      });
+
+      return { liked: !hasLiked, count: nextCount };
+    }
+  } catch (err) {
+    console.warn('Failed to toggle video like in DB:', err);
+  }
+  return { liked: true, count: 1 };
+}
+
+export async function addVideoCommentInDb(videoId: string, comment: VideoComment): Promise<VideoComment[]> {
+  try {
+    const docRef = doc(db, 'videos', videoId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      const comments: VideoComment[] = Array.isArray(data.comments) ? data.comments : [];
+      const nextComments = [comment, ...comments];
+      await updateDoc(docRef, {
+        comments: nextComments,
+      });
+      return nextComments;
+    }
+  } catch (err) {
+    console.warn('Failed to add video comment in DB:', err);
+  }
+  return [comment];
 }
 
 export async function deleteVideoFromDb(videoId: string): Promise<void> {
@@ -759,5 +834,37 @@ export async function addSupportDonationToDb(donation: Omit<SupportDonation, 'id
   }
 
   return record;
+}
+
+export function subscribeToSupportDonations(callback: (donations: SupportDonation[]) => void) {
+  try {
+    const q = query(collection(db, 'support_donations'), orderBy('createdAt', 'desc'));
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const donations: SupportDonation[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          donations.push({
+            id: docSnap.id,
+            senderPhone: data.senderPhone || '',
+            recipientPhone: data.recipientPhone || '0794903078',
+            amount: typeof data.amount === 'number' ? data.amount : 0,
+            currency: data.currency || 'RWF',
+            reference: data.reference || '',
+            timestamp: data.timestamp || 'Just now',
+            status: data.status || 'completed',
+          });
+        });
+        callback(donations);
+      },
+      (err) => {
+        console.warn('Firestore support_donations subscription fallback:', err);
+      }
+    );
+  } catch (e) {
+    console.error('Error listening to support donations:', e);
+    return () => {};
+  }
 }
 

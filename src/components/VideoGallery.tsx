@@ -1,25 +1,31 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Play,
   Clock,
-  X,
-  UploadCloud,
-  CheckCircle,
-  ChevronDown,
-  ChevronUp,
-  ChevronLeft,
-  ChevronRight,
-  Link as LinkIcon,
+  BookOpen,
   Film,
-  Maximize2,
+  Link as LinkIcon,
+  UploadCloud,
+  ChevronUp,
+  ChevronDown,
   Trash2,
   Edit3,
-  Save,
-  Check,
-  BookOpen
+  X,
+  Maximize2,
+  Heart,
+  MessageSquare,
+  Send,
+  Image as ImageIcon,
+  Sparkles,
 } from 'lucide-react';
-import { VideoItem, User } from '../types';
-import { getYouTubeThumbnail } from '../utils/youtubeHelper';
+import { VideoItem, VideoComment, User } from '../types';
+import {
+  getYouTubeThumbnail,
+  extractYouTubeId,
+  fetchYouTubeVideoDetails,
+  formatViewsCount,
+  formatVideoDuration,
+} from '../utils/youtubeHelper';
 
 interface VideoGalleryProps {
   videos: VideoItem[];
@@ -29,6 +35,9 @@ interface VideoGalleryProps {
   onUploadVideo?: (video: VideoItem) => void;
   onDeleteVideo?: (videoId: string) => void;
   onUpdateVideo?: (video: VideoItem) => void;
+  onLikeVideo?: (videoId: string) => void;
+  onAddComment?: (videoId: string, comment: VideoComment) => void;
+  onIncrementViews?: (videoId: string) => void;
   isStandalonePage?: boolean;
 }
 
@@ -39,19 +48,14 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
   onUploadVideo,
   onDeleteVideo,
   onUpdateVideo,
+  onLikeVideo,
+  onAddComment,
+  onIncrementViews,
   isStandalonePage = false,
 }) => {
   const [activeVideo, setActiveVideo] = useState<VideoItem | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const scrollRowRef = useRef<HTMLDivElement>(null);
-
-  const handleScrollLeft = () => {
-    scrollRowRef.current?.scrollBy({ left: -280, behavior: 'smooth' });
-  };
-
-  const handleScrollRight = () => {
-    scrollRowRef.current?.scrollBy({ left: 280, behavior: 'smooth' });
-  };
+  const [activePlayingId, setActivePlayingId] = useState<string | null>(null);
 
   // Edit Video Modal state
   const [editingVideo, setEditingVideo] = useState<VideoItem | null>(null);
@@ -65,47 +69,73 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
   const [editVideoUrl, setEditVideoUrl] = useState('');
   const [editTags, setEditTags] = useState('');
   const [editSaveSuccess, setEditSaveSuccess] = useState(false);
-  
-  // Track which card is playing video inline
-  const [activePlayingId, setActivePlayingId] = useState<string | null>(null);
 
-  // Track expanded descriptions per video card (hide description and hashtags by default)
+  // Track expanded descriptions per video card
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
-  const toggleCardExpansion = (videoId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setExpandedCards((prev) => ({
-      ...prev,
-      [videoId]: !prev[videoId],
-    }));
-  };
+  // Comment input state inside active video modal
+  const [commentText, setCommentText] = useState('');
+  const [commentAuthor, setCommentAuthor] = useState('');
 
-  // Upload options: link vs device
-  const [uploadType, setUploadType] = useState<'link' | 'device'>('link');
+  // Upload modal state
+  const [uploadType, setUploadType] = useState<'link' | 'device'>('device');
   const [videoLink, setVideoLink] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
   const [deviceFilePreviewUrl, setDeviceFilePreviewUrl] = useState<string | null>(null);
+  const [deviceThumbnailUrl, setDeviceThumbnailUrl] = useState<string | null>(null);
+  const [deviceThumbnailName, setDeviceThumbnailName] = useState<string>('');
+  const [detectedYouTubeViews, setDetectedYouTubeViews] = useState<string>('');
+  const [isDetectingYt, setIsDetectingYt] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState<string>('Phone Mastery');
-  const [newDuration, setNewDuration] = useState('09:40');
+  const [newDuration, setNewDuration] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [localVideoList, setLocalVideoList] = useState<VideoItem[]>(videos);
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
-  // Auto YouTube thumbnail detection in gallery modal
+  // Keep local list in sync with parent props
+  useEffect(() => {
+    setLocalVideoList(videos);
+    if (activeVideo) {
+      const fresh = videos.find((v) => v.id === activeVideo.id);
+      if (fresh) setActiveVideo(fresh);
+    }
+  }, [videos]);
+
+  // Auto-detect YouTube views and thumbnail when admin pastes link
+  useEffect(() => {
+    if (uploadType === 'link' && videoLink.trim()) {
+      const yId = extractYouTubeId(videoLink.trim());
+      if (yId) {
+        setIsDetectingYt(true);
+        fetchYouTubeVideoDetails(yId)
+          .then((details) => {
+            if (details.views) {
+              setDetectedYouTubeViews(details.views);
+            }
+            if (details.duration && !newDuration) {
+              setNewDuration(details.duration);
+            }
+            if (details.title && !newTitle) {
+              setNewTitle(details.title);
+            }
+          })
+          .catch((err) => console.warn('YouTube details fetch err:', err))
+          .finally(() => setIsDetectingYt(false));
+      }
+    }
+  }, [uploadType, videoLink]);
+
   const detectedYouTubeThumb = useMemo(() => {
     if (uploadType === 'link' && videoLink) {
       return getYouTubeThumbnail(videoLink);
     }
     return null;
   }, [uploadType, videoLink]);
-  
-  // Keep local list in sync with parent props
-  React.useEffect(() => {
-    setLocalVideoList(videos);
-  }, [videos]);
 
   const filteredVideos = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -120,11 +150,12 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
     });
   }, [localVideoList, searchQuery]);
 
-  // Display ONLY 6 cards in this section as requested; others will be displayed on YouTube
+  // Display top 6 featured tutorials as requested
   const displayedVideos = useMemo(() => {
     return filteredVideos.slice(0, 6);
   }, [filteredVideos]);
 
+  // Video file change from device -> auto-detect duration & name
   const handleDeviceFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -135,6 +166,33 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
       }
       const previewUrl = URL.createObjectURL(file);
       setDeviceFilePreviewUrl(previewUrl);
+
+      // Auto-detect duration from video metadata
+      const tempVideo = document.createElement('video');
+      tempVideo.preload = 'metadata';
+      tempVideo.onloadedmetadata = () => {
+        const totalSec = Math.round(tempVideo.duration);
+        const mins = Math.floor(totalSec / 60);
+        const secs = totalSec % 60;
+        const durFormatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        setNewDuration(durFormatted);
+      };
+      tempVideo.src = previewUrl;
+    }
+  };
+
+  // Thumbnail image change from device
+  const handleDeviceThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setDeviceThumbnailName(file.name);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        if (ev.target?.result) {
+          setDeviceThumbnailUrl(ev.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -142,22 +200,38 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
     e.preventDefault();
     if (!newTitle.trim()) return;
 
-    // Automatic YouTube thumbnail extraction when pasting a link in modal
+    // Thumbnail selection: from device thumbnail input, YouTube auto-extract, or fallback
     const autoYtThumb = uploadType === 'link' ? getYouTubeThumbnail(videoLink.trim()) : null;
-    const finalThumbnail = autoYtThumb || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
+    const finalThumbnail =
+      deviceThumbnailUrl ||
+      autoYtThumb ||
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
+
+    // Views: YouTube views if link, or real initial count for uploaded video
+    const finalViews =
+      uploadType === 'link'
+        ? detectedYouTubeViews || '1.5K views'
+        : '0 views';
 
     const added: VideoItem = {
       id: 'vid-' + Date.now(),
       title: newTitle.trim(),
       category: newCategory,
       duration: newDuration.trim() || '10:00',
-      views: '1.2K views',
+      views: finalViews,
+      viewsCount: uploadType === 'device' ? 0 : 1500,
       date: 'Just now',
       thumbnail: finalThumbnail,
-      videoUrl: uploadType === 'link' ? videoLink.trim() : deviceFilePreviewUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+      videoUrl:
+        uploadType === 'link'
+          ? videoLink.trim()
+          : deviceFilePreviewUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
       sourceType: uploadType,
       description: newDescription.trim() || 'Tech walkthrough on ' + newTitle.trim(),
-      tags: ['Tutorial'],
+      tags: ['Tutorial', uploadType === 'device' ? 'Uploaded Video' : 'YouTube Link'],
+      likes: 0,
+      likedBy: [],
+      comments: [],
     };
 
     if (onUploadVideo) {
@@ -170,7 +244,11 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
     setVideoLink('');
     setSelectedFileName('');
     setDeviceFilePreviewUrl(null);
+    setDeviceThumbnailUrl(null);
+    setDeviceThumbnailName('');
     setNewDescription('');
+    setNewDuration('');
+    setDetectedYouTubeViews('');
     setUploadSuccess(true);
     setTimeout(() => {
       setUploadSuccess(false);
@@ -240,7 +318,6 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
     }
   };
 
-  // Helper to test if a video item is an external link
   const isVideoLink = (video: VideoItem) => {
     if (video.sourceType === 'link') return true;
     if (video.videoUrl) {
@@ -257,24 +334,76 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
     return false;
   };
 
-  // Card click handler: If link, direct to video of that link; if video, play video
   const handleCardClick = (video: VideoItem, e?: React.MouseEvent) => {
-    if (e && (e.target as HTMLElement).closest('.card-expansion-toggle')) {
+    if (e && (e.target as HTMLElement).closest('.card-action-element')) {
       return;
     }
 
+    // Increment real views count when a user plays or views the tutorial
+    if (onIncrementViews) {
+      onIncrementViews(video.id);
+    }
+
     if (isVideoLink(video) && video.videoUrl) {
-      // "but if is a link it will display thumbnail and when click on that thumbnail direct to video of that link"
       window.open(video.videoUrl, '_blank', 'noopener,noreferrer');
       return;
     }
 
-    // "when press on that one card will play video"
-    if (activePlayingId === video.id) {
-      setActiveVideo(video);
-    } else {
-      setActivePlayingId(video.id);
+    setActiveVideo(video);
+  };
+
+  const handleLikeClick = (video: VideoItem, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
     }
+    if (onLikeVideo) {
+      onLikeVideo(video.id);
+    } else {
+      // Local optimistic toggle
+      const userId = currentUser?.id || 'guest';
+      setLocalVideoList((prev) =>
+        prev.map((v) => {
+          if (v.id !== video.id) return v;
+          const likedBy = v.likedBy || [];
+          const hasLiked = likedBy.includes(userId);
+          const nextLikedBy = hasLiked ? likedBy.filter((u) => u !== userId) : [...likedBy, userId];
+          const nextLikes = Math.max(0, (v.likes || 0) + (hasLiked ? -1 : 1));
+          return { ...v, likes: nextLikes, likedBy: nextLikedBy };
+        })
+      );
+    }
+  };
+
+  const handleCommentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentText.trim() || !activeVideo) return;
+
+    const author =
+      currentUser?.username ||
+      commentAuthor.trim() ||
+      'Viewer';
+
+    const newComment: VideoComment = {
+      id: 'c-' + Date.now(),
+      authorName: author,
+      authorAvatar: currentUser?.avatarUrl,
+      userId: currentUser?.id,
+      text: commentText.trim(),
+      timestamp: 'Just now',
+    };
+
+    if (onAddComment) {
+      onAddComment(activeVideo.id, newComment);
+    } else {
+      const updatedComments = [newComment, ...(activeVideo.comments || [])];
+      setActiveVideo({ ...activeVideo, comments: updatedComments });
+      setLocalVideoList((prev) =>
+        prev.map((v) => (v.id === activeVideo.id ? { ...v, comments: updatedComments } : v))
+      );
+    }
+
+    setCommentText('');
   };
 
   return (
@@ -286,7 +415,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Kicker: Clean without underlines or numbers */}
+        {/* Kicker */}
         <div className="text-xs font-bold tracking-widest uppercase text-neutral-800 mb-6">
           VIDEO GALLERY {isStandalonePage ? '· COMPLETE ARCHIVE' : ''}
         </div>
@@ -298,85 +427,52 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
               Watch the latest tutorials
             </h2>
             <p className="text-xs sm:text-sm text-neutral-600 mt-1 font-medium">
-              Practical guides and walkthroughs. Click any card to watch.
+              Practical guides and walkthroughs. Click any card to play, like, or comment.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Horizontal Scroll Navigation Arrows */}
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={handleScrollLeft}
-                className="w-9 h-9 rounded-xl border border-neutral-200 hover:border-neutral-900 bg-white hover:bg-neutral-50 flex items-center justify-center text-neutral-700 hover:text-neutral-950 transition-colors shadow-2xs cursor-pointer"
-                aria-label="Scroll left"
-                title="Previous tutorials"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={handleScrollRight}
-                className="w-9 h-9 rounded-xl border border-neutral-200 hover:border-neutral-900 bg-white hover:bg-neutral-50 flex items-center justify-center text-neutral-700 hover:text-neutral-950 transition-colors shadow-2xs cursor-pointer"
-                aria-label="Scroll right"
-                title="Next tutorials"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-
             {/* ONLY ADMIN CAN SEE WHERE TO UPLOAD */}
             {currentUser?.role === 'admin' && (
               <button
                 type="button"
                 onClick={() => setUploadModalOpen(true)}
-                className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
+                className="h-12 px-5 py-3 rounded-xl font-bold text-xs sm:text-sm text-white bg-neutral-900 hover:bg-neutral-800 transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-2 shrink-0"
               >
-                <UploadCloud className="w-3.5 h-3.5 text-orange-500" />
+                <UploadCloud className="w-4 h-4 text-orange-500" />
                 <span>Upload Video (Admin)</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* ONE LINE OF TUTORIALS WITH SMALL CARDS */}
-        {filteredVideos.length === 0 ? (
-          <div className="py-14 text-center bg-neutral-50 rounded-3xl border border-neutral-200 p-8 max-w-lg mx-auto space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-neutral-200/80 text-neutral-500 mx-auto flex items-center justify-center">
-              <Film className="w-6 h-6 text-neutral-500" />
-            </div>
-            <h3 className="text-base font-bold text-neutral-900">
-              {searchQuery ? `No tutorials match "${searchQuery}"` : 'No tutorial videos added yet'}
-            </h3>
-            <p className="text-xs text-neutral-600 leading-relaxed">
-              {searchQuery
-                ? 'Try a different search keyword or clear the search bar.'
-                : currentUser?.role === 'admin'
-                ? 'Your video gallery is in a clean slate. Click "Upload Video" above to publish your first video.'
-                : 'Topson Media is preparing new phone & PC walkthroughs. Check back soon!'}
-            </p>
-            {currentUser?.role === 'admin' && !searchQuery && (
-              <button
-                type="button"
-                onClick={() => setUploadModalOpen(true)}
-                className="mt-1 inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl transition-all shadow-xs cursor-pointer"
-              >
-                <UploadCloud className="w-3.5 h-3.5 text-orange-400" />
-                <span>Upload First Video</span>
-              </button>
-            )}
+        {/* Search status indicator */}
+        {searchQuery.trim() && (
+          <div className="mb-6 flex items-center gap-2 text-xs font-semibold text-neutral-700 bg-neutral-50 px-4 py-2.5 rounded-xl border border-neutral-200">
+            <span>Filtering by: &ldquo;{searchQuery}&rdquo;</span>
+            <span className="text-neutral-400">·</span>
+            <span>{displayedVideos.length} matching tutorials</span>
+          </div>
+        )}
+
+        {/* AUTOMATIC MULTI-COLUMN COMPACT GRID (1 col mobile, 2 cols tablet, 3 cols desktop) */}
+        {displayedVideos.length === 0 ? (
+          <div className="rounded-3xl p-12 bg-white border border-neutral-200 text-center space-y-3">
+            <Film className="w-12 h-12 text-neutral-400 mx-auto" />
+            <h3 className="text-xl font-bold text-neutral-900">No tutorials found</h3>
+            <p className="text-xs text-neutral-600">Try adjusting your search query.</p>
           </div>
         ) : (
-          <div
-            ref={scrollRowRef}
-            className="flex flex-nowrap items-stretch gap-3 sm:gap-4 overflow-x-auto pb-4 pt-1 px-1 custom-scrollbar snap-x snap-mandatory scroll-smooth"
-          >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
             {displayedVideos.map((video) => {
               const isExpanded = !!expandedCards[video.id];
               const isLink = isVideoLink(video);
               const isPlaying = activePlayingId === video.id;
+              const userId = currentUser?.id || 'guest';
+              const isLiked = video.likedBy?.includes(userId) ?? false;
+              const likesCount = video.likes || 0;
+              const commentsCount = video.comments?.length || 0;
 
-              // Clean tags: Filter out words like "digital skills" as requested
               const cleanTags = video.tags.filter(
                 (t) => !t.toLowerCase().includes('digital skills') && !t.toLowerCase().includes('skills')
               );
@@ -388,10 +484,10 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
               return (
                 <div
                   key={video.id}
-                  className="snap-start shrink-0 w-[220px] sm:w-[240px] md:w-[250px] group rounded-2xl overflow-hidden bg-white border border-neutral-200 shadow-2xs hover:shadow-lg hover:border-orange-500/50 hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between"
+                  className="w-full group rounded-2xl overflow-hidden bg-white border border-neutral-200 shadow-xs hover:shadow-lg hover:border-orange-500/50 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
                 >
                   <div>
-                    {/* Media Area: Compact 16:9 ratio */}
+                    {/* Media Area: 16:9 ratio */}
                     <div className="relative aspect-[16/9] w-full overflow-hidden bg-neutral-950">
                       {isPlaying ? (
                         <div className="relative w-full h-full bg-black">
@@ -408,11 +504,11 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setActivePlayingId(null);
                                 setActiveVideo(video);
                               }}
                               className="p-1 rounded-full bg-black/70 hover:bg-neutral-800 text-white transition-colors cursor-pointer"
-                              title="Full Player"
-                              aria-label="Full player"
+                              title="Expand player"
                             >
                               <Maximize2 className="w-3 h-3" />
                             </button>
@@ -424,7 +520,6 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                               }}
                               className="p-1 rounded-full bg-black/70 hover:bg-neutral-800 text-white transition-colors cursor-pointer"
                               title="Stop playback"
-                              aria-label="Stop playback"
                             >
                               <X className="w-3 h-3" />
                             </button>
@@ -433,7 +528,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                       ) : (
                         <div
                           onClick={(e) => handleCardClick(video, e)}
-                          className="relative w-full h-full cursor-pointer group/thumb select-none"
+                          className="relative w-full h-full cursor-pointer group/thumb"
                         >
                           <img
                             src={video.thumbnail}
@@ -441,10 +536,10 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                             referrerPolicy="no-referrer"
                             className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300 opacity-95"
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
 
                           {/* Duration badge */}
-                          <div className="absolute bottom-2 right-2 flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-semibold text-white">
+                          <div className="absolute bottom-2 right-2 flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/85 text-[10px] font-semibold text-white">
                             <Clock className="w-2.5 h-2.5" />
                             <span>{video.duration}</span>
                           </div>
@@ -458,7 +553,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                               <span>YouTube</span>
                             </div>
                           ) : (
-                            <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-black/75 text-[9px] font-semibold text-white">
+                            <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-black/80 text-[9px] font-semibold text-white">
                               <Film className="w-2.5 h-2.5 text-orange-400" />
                               <span>Video</span>
                             </div>
@@ -467,14 +562,14 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                           {/* Hover action banner */}
                           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity bg-black/40">
                             {isLink ? (
-                              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white font-bold text-[11px] shadow-md">
-                                <LinkIcon className="w-3 h-3" />
+                              <div className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600 text-white font-bold text-xs shadow-md">
+                                <LinkIcon className="w-3.5 h-3.5" />
                                 <span>Open Video</span>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-neutral-950 font-bold text-[11px] shadow-md">
-                                <Play className="w-3 h-3 fill-neutral-950 ml-0.5" />
-                                <span>Play</span>
+                              <div className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-neutral-950 font-bold text-xs shadow-md">
+                                <Play className="w-3.5 h-3.5 fill-neutral-950 ml-0.5" />
+                                <span>Play Tutorial</span>
                               </div>
                             )}
                           </div>
@@ -483,12 +578,12 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                     </div>
 
                     {/* Metadata & Title */}
-                    <div className="p-3 sm:p-3.5">
-                      <div className="flex items-center justify-between gap-1 text-[10px] text-neutral-500 font-semibold mb-1.5">
+                    <div className="p-4">
+                      <div className="flex items-center justify-between gap-1 text-[11px] text-neutral-500 font-semibold mb-2">
                         <div className="flex items-center gap-1.5 truncate">
                           <span>{video.date}</span>
                           <span>·</span>
-                          <span>{video.views}</span>
+                          <span className="text-neutral-700 font-bold">{video.views}</span>
                         </div>
                         <span
                           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 font-bold text-[9px] border border-orange-200/50 shrink-0"
@@ -514,7 +609,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
 
                       <h3
                         onClick={(e) => handleCardClick(video, e)}
-                        className="text-xs sm:text-sm font-bold text-neutral-900 leading-snug hover:text-orange-600 transition-colors cursor-pointer line-clamp-2"
+                        className="text-sm font-bold text-neutral-900 leading-snug hover:text-orange-600 transition-colors cursor-pointer line-clamp-2"
                         title={video.title}
                       >
                         {video.title}
@@ -522,7 +617,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
 
                       {isExpanded && (
                         <div className="mt-2.5 pt-2.5 border-t border-neutral-100 animate-in fade-in space-y-2">
-                          <p className="text-[11px] text-neutral-600 leading-relaxed">
+                          <p className="text-xs text-neutral-600 leading-relaxed">
                             {video.description}
                           </p>
 
@@ -543,44 +638,76 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                     </div>
                   </div>
 
-                  {/* See more / See less Toggle Button & Admin Quick Actions */}
-                  <div className="px-3 pb-3 pt-1 flex items-center justify-between card-expansion-toggle border-t border-neutral-100/60">
-                    <button
-                      type="button"
-                      onClick={(e) => toggleCardExpansion(video.id, e)}
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-neutral-700 hover:text-orange-600 transition-colors cursor-pointer"
-                    >
-                      <span>{isExpanded ? 'Less' : 'More'}</span>
-                      {isExpanded ? (
-                        <ChevronUp className="w-3 h-3" />
-                      ) : (
-                        <ChevronDown className="w-3 h-3" />
-                      )}
-                    </button>
+                  {/* Card Action Bar: Like & Comment on every post + Expand Details */}
+                  <div className="px-4 py-3 border-t border-neutral-100 flex items-center justify-between card-action-element">
+                    <div className="flex items-center gap-3">
+                      {/* Like button */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleLikeClick(video, e)}
+                        className={`inline-flex items-center gap-1 text-xs font-bold transition-all cursor-pointer ${
+                          isLiked
+                            ? 'text-rose-600'
+                            : 'text-neutral-600 hover:text-rose-600'
+                        }`}
+                        title={isLiked ? 'Unlike' : 'Like this post'}
+                      >
+                        <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+                        <span>{likesCount}</span>
+                      </button>
 
-                    {/* Admin Edit & Delete Actions */}
-                    {currentUser?.role === 'admin' && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={(e) => handleOpenEditVideo(video, e)}
-                          className="px-2 py-0.5 rounded-md bg-neutral-100 hover:bg-neutral-200 text-neutral-800 hover:text-orange-600 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                          title="Edit all details"
-                        >
-                          <Edit3 className="w-3 h-3" />
-                          <span>Edit</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeleteVideoConfirm(video, e)}
-                          className="p-1 rounded-md bg-red-50 hover:bg-red-100 text-red-600 transition-colors cursor-pointer text-[11px] font-bold"
-                          title="Delete tutorial"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
+                      {/* Comment button -> Opens player modal with comments */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveVideo(video);
+                        }}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-neutral-600 hover:text-orange-600 transition-colors cursor-pointer"
+                        title="View comments"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-neutral-500" />
+                        <span>{commentsCount}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedCards((prev) => ({ ...prev, [video.id]: !prev[video.id] }));
+                        }}
+                        className="inline-flex items-center gap-0.5 text-[11px] font-bold text-neutral-500 hover:text-neutral-900 cursor-pointer"
+                      >
+                        <span>{isExpanded ? 'Less' : 'More'}</span>
+                        {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+
+                      {/* Admin Quick Actions */}
+                      {currentUser?.role === 'admin' && (
+                        <div className="flex items-center gap-1 ml-1 border-l border-neutral-200 pl-2">
+                          <button
+                            type="button"
+                            onClick={(e) => handleOpenEditVideo(video, e)}
+                            className="p-1 rounded text-neutral-500 hover:text-orange-600 hover:bg-neutral-100 cursor-pointer"
+                            title="Edit"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteVideoConfirm(video, e)}
+                            className="p-1 rounded text-neutral-500 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
+
                 </div>
               );
             })}
@@ -613,17 +740,17 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
           </a>
         </div>
 
-        {/* Video Player Modal */}
+        {/* Video Player Modal with Likes & Comments */}
         {activeVideo && (
           <div
             role="dialog"
             aria-modal="true"
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in overflow-y-auto"
             onClick={() => setActiveVideo(null)}
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-3xl rounded-3xl overflow-hidden bg-neutral-950 border border-neutral-800 text-white shadow-2xl"
+              className="relative w-full max-w-3xl my-8 rounded-3xl overflow-hidden bg-neutral-950 border border-neutral-800 text-white shadow-2xl"
             >
               <button
                 type="button"
@@ -657,7 +784,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                         className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#FF0000] hover:bg-[#CC0000] text-white font-bold text-sm shadow-md transition-colors"
                       >
                         <LinkIcon className="w-4 h-4" />
-                        <span>Open Video of this Link</span>
+                        <span>Watch on YouTube</span>
                       </a>
                     </div>
                   </div>
@@ -675,17 +802,105 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                 )}
               </div>
 
-              <div className="p-6 bg-white text-neutral-900">
-                <div className="flex items-center gap-3 text-xs text-neutral-600 mb-2 font-semibold">
-                  <span>{activeVideo.duration}</span>
-                  <span>·</span>
-                  <span>{activeVideo.views}</span>
-                  <span>·</span>
-                  <span>{activeVideo.date}</span>
+              {/* Video Info & Interaction Section */}
+              <div className="p-6 bg-white text-neutral-900 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-100">
+                  <div>
+                    <h3 className="text-lg font-black text-neutral-900 leading-snug">
+                      {activeVideo.title}
+                    </h3>
+                    <div className="flex items-center gap-2 text-xs text-neutral-500 font-semibold mt-1">
+                      <span>{activeVideo.category}</span>
+                      <span>·</span>
+                      <span>{activeVideo.duration}</span>
+                      <span>·</span>
+                      <span className="text-neutral-900 font-bold">{activeVideo.views}</span>
+                      <span>·</span>
+                      <span>{activeVideo.date}</span>
+                    </div>
+                  </div>
+
+                  {/* Like Button */}
+                  <button
+                    type="button"
+                    onClick={(e) => handleLikeClick(activeVideo, e)}
+                    className={`h-10 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border shrink-0 ${
+                      activeVideo.likedBy?.includes(currentUser?.id || 'guest')
+                        ? 'bg-rose-50 text-rose-600 border-rose-200'
+                        : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700 border-neutral-200'
+                    }`}
+                  >
+                    <Heart className={`w-4 h-4 ${activeVideo.likedBy?.includes(currentUser?.id || 'guest') ? 'fill-rose-500 text-rose-500' : ''}`} />
+                    <span>{activeVideo.likes || 0} Likes</span>
+                  </button>
                 </div>
-                <p className="text-sm text-neutral-700 leading-relaxed mb-4">
+
+                <p className="text-xs sm:text-sm text-neutral-700 leading-relaxed">
                   {activeVideo.description}
                 </p>
+
+                {/* Comments Section */}
+                <div className="pt-4 border-t border-neutral-100 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700">
+                      Comments ({activeVideo.comments?.length || 0})
+                    </h4>
+                  </div>
+
+                  {/* Add comment form */}
+                  <form onSubmit={handleCommentSubmit} className="space-y-2">
+                    {!currentUser && (
+                      <input
+                        type="text"
+                        value={commentAuthor}
+                        onChange={(e) => setCommentAuthor(e.target.value)}
+                        placeholder="Your name (optional)"
+                        className="w-full px-3 py-1.5 text-xs rounded-xl border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900"
+                      />
+                    )}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        required
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        placeholder="Write a comment..."
+                        className="flex-1 px-3.5 py-2 text-xs rounded-xl border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!commentText.trim()}
+                        className="h-10 px-4 rounded-xl bg-neutral-900 text-white font-bold text-xs hover:bg-neutral-800 disabled:opacity-40 transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+                      >
+                        <span>Post</span>
+                        <Send className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Comments list */}
+                  <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
+                    {(!activeVideo.comments || activeVideo.comments.length === 0) ? (
+                      <p className="text-xs text-neutral-400 italic py-2">
+                        No comments yet. Be the first to share your thoughts!
+                      </p>
+                    ) : (
+                      activeVideo.comments.map((c) => (
+                        <div
+                          key={c.id}
+                          className="p-3 rounded-xl bg-neutral-50 border border-neutral-200/60 text-xs space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-neutral-900">{c.authorName}</span>
+                            <span className="text-[10px] text-neutral-400">{c.timestamp}</span>
+                          </div>
+                          <p className="text-neutral-700 text-xs leading-relaxed">{c.text}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
@@ -696,144 +911,179 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
           <div
             role="dialog"
             aria-modal="true"
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in overflow-y-auto"
             onClick={() => setUploadModalOpen(false)}
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-lg rounded-3xl bg-white border border-neutral-200 p-6 sm:p-8 text-neutral-900 shadow-2xl"
+              className="relative w-full max-w-lg my-8 rounded-3xl p-6 sm:p-7 bg-white text-neutral-900 shadow-2xl border border-neutral-200"
             >
               <button
                 type="button"
                 onClick={() => setUploadModalOpen(false)}
-                className="absolute top-5 right-5 p-2 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
-                aria-label="Close"
+                className="absolute top-4 right-4 p-2 rounded-full text-neutral-400 hover:text-neutral-700 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
 
-              <div className="mb-6">
-                <div className="w-10 h-10 rounded-2xl bg-orange-500/10 text-orange-500 flex items-center justify-center mb-3">
-                  <UploadCloud className="w-5 h-5" />
-                </div>
-                <h3 className="text-xl font-black text-neutral-900">Upload New Tutorial</h3>
-                <p className="text-xs text-neutral-600 mt-1 font-medium">
-                  Choose between pasting an external link or uploading from your local device.
-                </p>
-              </div>
+              <h3 className="text-lg font-black text-neutral-900 mb-1">
+                Upload New Tutorial (Admin)
+              </h3>
+              <p className="text-xs text-neutral-600 mb-4 font-medium">
+                Upload a video file from your device with custom thumbnail, or paste a YouTube link.
+              </p>
 
               {uploadSuccess ? (
-                <div className="py-8 text-center space-y-2 animate-in fade-in">
-                  <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto">
-                    <CheckCircle className="w-6 h-6" />
+                <div className="py-8 text-center space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                    <Sparkles className="w-6 h-6" />
                   </div>
-                  <h4 className="text-base font-bold text-neutral-900">Tutorial Uploaded!</h4>
-                  <p className="text-xs text-neutral-600">
-                    Your video is now live in the tutorial gallery.
-                  </p>
+                  <h4 className="text-base font-bold text-neutral-900">Tutorial published!</h4>
+                  <p className="text-xs text-neutral-600">Video is now live in the gallery.</p>
                 </div>
               ) : (
                 <form onSubmit={handleUploadSubmit} className="space-y-4">
-                  {/* Upload Method Tabs */}
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-800 mb-1.5">
-                      Upload Source <span className="text-orange-500">*</span>
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-neutral-100">
-                      <button
-                        type="button"
-                        onClick={() => setUploadType('link')}
-                        className={`py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                          uploadType === 'link'
-                            ? 'bg-white text-neutral-900 shadow-xs'
-                            : 'text-neutral-600 hover:text-neutral-900'
-                        }`}
-                      >
-                        <LinkIcon className="w-3.5 h-3.5" />
-                        <span>Paste Video Link</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setUploadType('device')}
-                        className={`py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                          uploadType === 'device'
-                            ? 'bg-white text-neutral-900 shadow-xs'
-                            : 'text-neutral-600 hover:text-neutral-900'
-                        }`}
-                      >
-                        <Film className="w-3.5 h-3.5" />
-                        <span>Upload from Device</span>
-                      </button>
-                    </div>
+                  {/* Selector: Video from Device vs YouTube Link */}
+                  <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-neutral-100 border border-neutral-200">
+                    <button
+                      type="button"
+                      onClick={() => setUploadType('device')}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        uploadType === 'device'
+                          ? 'bg-white text-neutral-900 shadow-xs'
+                          : 'text-neutral-600 hover:text-neutral-900'
+                      }`}
+                    >
+                      <Film className="w-3.5 h-3.5 text-orange-500" />
+                      <span>Upload from Device</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadType('link')}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        uploadType === 'link'
+                          ? 'bg-white text-neutral-900 shadow-xs'
+                          : 'text-neutral-600 hover:text-neutral-900'
+                      }`}
+                    >
+                      <LinkIcon className="w-3.5 h-3.5 text-red-500" />
+                      <span>YouTube Link</span>
+                    </button>
                   </div>
 
-                  {/* Input depending on upload type */}
-                  {uploadType === 'link' ? (
+                  {uploadType === 'device' ? (
+                    <div className="space-y-3">
+                      {/* Video File Picker */}
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-800 mb-1">
+                          Select Video File (MP4, WebM) <span className="text-orange-500">*</span>
+                        </label>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="video/*"
+                          onChange={handleDeviceFileChange}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="w-full h-12 py-3 px-4 rounded-xl border border-dashed border-neutral-300 hover:border-neutral-500 text-xs font-medium text-neutral-700 flex items-center justify-center gap-2 cursor-pointer bg-neutral-50"
+                        >
+                          <Film className="w-4 h-4 text-orange-500" />
+                          <span className="truncate">
+                            {selectedFileName ? selectedFileName : 'Choose video file from device'}
+                          </span>
+                        </button>
+                        {newDuration && (
+                          <p className="text-[11px] text-emerald-600 font-semibold mt-1">
+                            ✓ Detected Duration: {newDuration}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Thumbnail Image Picker from Device */}
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-800 mb-1">
+                          Select Thumbnail from Device
+                        </label>
+                        <input
+                          ref={thumbnailInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleDeviceThumbnailChange}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => thumbnailInputRef.current?.click()}
+                          className="w-full h-12 py-3 px-4 rounded-xl border border-dashed border-neutral-300 hover:border-neutral-500 text-xs font-medium text-neutral-700 flex items-center justify-center gap-2 cursor-pointer bg-neutral-50"
+                        >
+                          <ImageIcon className="w-4 h-4 text-orange-500" />
+                          <span className="truncate">
+                            {deviceThumbnailName ? deviceThumbnailName : 'Select thumbnail image from device'}
+                          </span>
+                        </button>
+                        {deviceThumbnailUrl && (
+                          <div className="mt-2 w-28 h-16 rounded-lg overflow-hidden border border-neutral-200 shadow-2xs">
+                            <img src={deviceThumbnailUrl} alt="Thumbnail preview" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
                     <div>
-                      <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                        Video URL (YouTube or Web)
+                      <label className="block text-xs font-bold text-neutral-800 mb-1">
+                        YouTube URL or Reel Link <span className="text-orange-500">*</span>
                       </label>
                       <input
                         type="url"
                         required
-                        value={videoLink ?? ''}
+                        value={videoLink}
                         onChange={(e) => setVideoLink(e.target.value)}
-                        placeholder="https://youtube.com/watch?v=..."
-                        className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        className="w-full h-11 px-3.5 text-xs rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900"
                       />
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                        Select Video File
-                      </label>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="video/*"
-                        onChange={handleDeviceFileChange}
-                        className="hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full py-3 px-4 rounded-xl border border-dashed border-neutral-300 hover:border-neutral-500 text-xs font-medium text-neutral-700 flex items-center justify-center gap-2 cursor-pointer bg-neutral-50"
-                      >
-                        <Film className="w-4 h-4 text-orange-500" />
-                        <span>{selectedFileName ? selectedFileName : 'Choose MP4 or WebM video file'}</span>
-                      </button>
+                      {isDetectingYt && (
+                        <p className="text-[11px] text-neutral-500 mt-1">Fetching YouTube view count & details...</p>
+                      )}
+                      {detectedYouTubeViews && (
+                        <p className="text-[11px] text-emerald-600 font-semibold mt-1">
+                          ✓ YouTube Views: {detectedYouTubeViews}
+                        </p>
+                      )}
                     </div>
                   )}
 
                   {/* Title */}
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                    <label className="block text-xs font-bold text-neutral-800 mb-1">
                       Tutorial Title <span className="text-orange-500">*</span>
                     </label>
                     <input
                       type="text"
                       required
-                      value={newTitle ?? ''}
+                      value={newTitle}
                       onChange={(e) => setNewTitle(e.target.value)}
                       placeholder="Title of tutorial"
-                      className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                      className="w-full h-11 px-3.5 text-xs rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900"
                     />
                   </div>
 
-                  {/* Category and Duration */}
+                  {/* Category & Duration */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                      <label className="block text-xs font-bold text-neutral-800 mb-1">
                         Category
                       </label>
                       <select
-                        value={newCategory ?? 'Phone Mastery'}
-                        onChange={(e) => setNewCategory(e.target.value as any)}
-                        className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900"
+                        value={newCategory}
+                        onChange={(e) => setNewCategory(e.target.value)}
+                        className="w-full h-11 px-3 text-xs rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900"
                       >
-                        <option value="Phone Mastery">Phone (Phone Mastery)</option>
-                        <option value="PC Performance">PC (PC Performance)</option>
-                        <option value="Digital & Web">Digital (Digital Skills & Web)</option>
+                        <option value="Phone Mastery">Phone Mastery</option>
+                        <option value="PC Performance">PC Performance</option>
+                        <option value="Digital & Web">Digital & Web</option>
                         <option value="Dev Workflows">Dev Workflows</option>
                         <option value="Desk & Gear">Desk & Gear</option>
                         <option value="Full Stack">Full Stack</option>
@@ -841,36 +1091,36 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                      <label className="block text-xs font-bold text-neutral-800 mb-1">
                         Duration
                       </label>
                       <input
                         type="text"
-                        value={newDuration ?? ''}
+                        value={newDuration}
                         onChange={(e) => setNewDuration(e.target.value)}
-                        placeholder="10:00"
-                        className="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900"
+                        placeholder="MM:SS (e.g. 08:30)"
+                        className="w-full h-11 px-3.5 text-xs rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900"
                       />
                     </div>
                   </div>
 
                   {/* Description */}
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                    <label className="block text-xs font-bold text-neutral-800 mb-1">
                       Description
                     </label>
                     <textarea
                       rows={2}
-                      value={newDescription ?? ''}
+                      value={newDescription}
                       onChange={(e) => setNewDescription(e.target.value)}
                       placeholder="Brief walkthrough summary"
-                      className="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900 resize-none"
+                      className="w-full p-3 text-xs rounded-xl bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:border-neutral-900 resize-none"
                     />
                   </div>
 
                   <button
                     type="submit"
-                    className="w-full py-2.5 px-4 font-bold text-xs sm:text-sm text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl transition-all cursor-pointer shadow-xs active:scale-98"
+                    className="w-full h-12 py-3 px-4 font-bold text-xs sm:text-sm text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl transition-all cursor-pointer shadow-xs active:scale-98"
                   >
                     Publish Tutorial Video
                   </button>
@@ -880,199 +1130,89 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
           </div>
         )}
 
-        {/* Edit Video Modal (Admin can change all details & delete) */}
+        {/* Edit Video Modal */}
         {editingVideo && (
           <div
             role="dialog"
             aria-modal="true"
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in overflow-y-auto"
             onClick={() => setEditingVideo(null)}
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-xl rounded-3xl bg-white border border-neutral-200 p-6 sm:p-8 text-neutral-900 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
+              className="relative w-full max-w-lg my-8 rounded-3xl p-6 sm:p-7 bg-white text-neutral-900 shadow-2xl border border-neutral-200"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
-                <h3 className="text-lg font-black text-neutral-900 flex items-center gap-2">
-                  <Edit3 className="w-5 h-5 text-orange-500" />
-                  <span>Edit Tutorial Details</span>
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setEditingVideo(null)}
-                  className="p-1 rounded-lg text-neutral-400 hover:text-neutral-900 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setEditingVideo(null)}
+                className="absolute top-4 right-4 p-2 rounded-full text-neutral-400 hover:text-neutral-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
 
-              {editSaveSuccess && (
-                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-600" />
-                  <span>All details saved successfully!</span>
-                </div>
-              )}
+              <h3 className="text-lg font-black text-neutral-900 mb-3">
+                Edit Tutorial Details
+              </h3>
 
-              <form onSubmit={handleSaveEditVideo} className="space-y-3.5 text-xs sm:text-sm">
-                <div>
-                  <label className="block text-xs font-bold text-neutral-700 mb-1">
-                    Tutorial Title
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-neutral-700 mb-1">
-                      Category
-                    </label>
-                    <select
-                      value={editCategory}
-                      onChange={(e) => setEditCategory(e.target.value as any)}
-                      className="w-full px-3 py-2 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
-                    >
-                      <option value="Dev Workflows">Phone Mastery</option>
-                      <option value="Desk & Gear">PC Performance</option>
-                      <option value="Full Stack">Digital Skills</option>
-                      <option value="AI Tools">AI Tools</option>
-                    </select>
+              {editSaveSuccess ? (
+                <div className="py-8 text-center space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                    <Sparkles className="w-6 h-6" />
                   </div>
+                  <h4 className="text-base font-bold text-neutral-900">Changes Saved!</h4>
+                </div>
+              ) : (
+                <form onSubmit={handleSaveEditVideo} className="space-y-3">
                   <div>
-                    <label className="block text-xs font-bold text-neutral-700 mb-1">
-                      Duration
-                    </label>
+                    <label className="block text-xs font-bold text-neutral-800 mb-1">Title</label>
                     <input
                       type="text"
-                      value={editDuration}
-                      onChange={(e) => setEditDuration(e.target.value)}
-                      placeholder="11:45"
-                      className="w-full px-3 py-2 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
+                      required
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="w-full h-10 px-3 text-xs rounded-xl border border-neutral-300 text-neutral-900"
                     />
                   </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-neutral-800 mb-1">Duration</label>
+                      <input
+                        type="text"
+                        value={editDuration}
+                        onChange={(e) => setEditDuration(e.target.value)}
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-neutral-300 text-neutral-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-neutral-800 mb-1">Views</label>
+                      <input
+                        type="text"
+                        value={editViews}
+                        onChange={(e) => setEditViews(e.target.value)}
+                        className="w-full h-10 px-3 text-xs rounded-xl border border-neutral-300 text-neutral-900"
+                      />
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="block text-xs font-bold text-neutral-700 mb-1">
-                      Views Count
-                    </label>
-                    <input
-                      type="text"
-                      value={editViews}
-                      onChange={(e) => setEditViews(e.target.value)}
-                      placeholder="1.8K views"
-                      className="w-full px-3 py-2 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
+                    <label className="block text-xs font-bold text-neutral-800 mb-1">Description</label>
+                    <textarea
+                      rows={2}
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      className="w-full p-2.5 text-xs rounded-xl border border-neutral-300 text-neutral-900 resize-none"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-neutral-700 mb-1">
-                      Date
-                    </label>
-                    <input
-                      type="text"
-                      value={editDate}
-                      onChange={(e) => setEditDate(e.target.value)}
-                      placeholder="Just now"
-                      className="w-full px-3 py-2 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
-                    />
-                  </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-neutral-700 mb-1">
-                    Video / YouTube Link URL
-                  </label>
-                  <input
-                    type="url"
-                    value={editVideoUrl}
-                    onChange={(e) => {
-                      setEditVideoUrl(e.target.value);
-                      const auto = getYouTubeThumbnail(e.target.value);
-                      if (auto) setEditThumbnail(auto);
-                    }}
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-neutral-700 mb-1">
-                    Thumbnail Image URL
-                  </label>
-                  <div className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      value={editThumbnail}
-                      onChange={(e) => setEditThumbnail(e.target.value)}
-                      className="flex-1 px-3.5 py-2.5 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
-                    />
-                    {editThumbnail && (
-                      <div className="w-14 h-9 rounded-lg overflow-hidden bg-black border border-neutral-300 shrink-0">
-                        <img src={editThumbnail} alt="Preview" className="w-full h-full object-cover" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-neutral-700 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-neutral-700 mb-1">
-                    Tags (comma separated)
-                  </label>
-                  <input
-                    type="text"
-                    value={editTags}
-                    onChange={(e) => setEditTags(e.target.value)}
-                    placeholder="Phone Mastery, Speed, Android"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-neutral-900"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-neutral-100">
                   <button
-                    type="button"
-                    onClick={() => {
-                      handleDeleteVideoConfirm(editingVideo);
-                      setEditingVideo(null);
-                    }}
-                    className="px-4 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    type="submit"
+                    className="w-full h-11 py-2.5 px-4 font-bold text-xs text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl transition-all cursor-pointer shadow-xs active:scale-98"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete Video</span>
+                    Save Changes
                   </button>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setEditingVideo(null)}
-                      className="px-4 py-2.5 rounded-xl border border-neutral-300 text-neutral-700 font-bold text-xs hover:bg-neutral-100 transition-colors cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-5 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-                    >
-                      <Save className="w-3.5 h-3.5 text-orange-500" />
-                      <span>Save All Changes</span>
-                    </button>
-                  </div>
-                </div>
-              </form>
+                </form>
+              )}
             </div>
           </div>
         )}

@@ -47,12 +47,22 @@ export interface FeedbackItem {
   replies?: FeedbackReply[];
 }
 
+export interface VideoComment {
+  id: string;
+  authorName: string;
+  authorAvatar?: string;
+  userId?: string;
+  text: string;
+  timestamp: string;
+}
+
 export interface VideoItem {
   id: string;
   title: string;
   category: 'Phone Mastery' | 'PC Performance' | 'Digital & Web' | 'Dev Workflows' | 'Desk & Gear' | 'Full Stack' | 'AI Tools' | string;
   duration: string;
   views: string;
+  viewsCount?: number;
   date: string;
   thumbnail: string;
   youtubeId?: string;
@@ -60,6 +70,9 @@ export interface VideoItem {
   sourceType?: 'link' | 'device';
   description: string;
   tags: string[];
+  likes?: number;
+  likedBy?: string[];
+  comments?: VideoComment[];
 }
 
 export interface EmailMessage {
@@ -82,4 +95,15 @@ export interface VisitorActivity {
   description: string;
   timestamp: string;
   userIpOrName?: string;
+}
+
+export interface SupportDonation {
+  id: string;
+  senderPhone: string;
+  recipientPhone: string;
+  amount: number;
+  currency: string;
+  reference: string;
+  timestamp: string;
+  status: 'completed' | 'pending' | 'failed';
 }

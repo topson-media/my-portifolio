@@ -36,10 +36,10 @@ export const Hero: React.FC<HeroProps> = ({
   return (
     <section id="hero" className="relative overflow-hidden pt-10 pb-16 lg:py-20 bg-white scroll-mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+        <div className="flex flex-col-reverse lg:flex-row items-center justify-between gap-8 lg:gap-12 w-full">
           
-          {/* Left Column: Bold Headline & Animated Copy */}
-          <div className="lg:col-span-6 flex flex-col items-start space-y-7">
+          {/* Left Column: Bold Headline & Animated Copy (Underneath image on mobile/tablet) */}
+          <div className="w-full lg:max-w-xl flex flex-col items-start space-y-6 sm:space-y-7">
             
             {/* Kicker: • THE EVERYDAY TECH ADVANTAGE (word-by-word) */}
             <div className="flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-neutral-800">
@@ -58,12 +58,12 @@ export const Hero: React.FC<HeroProps> = ({
             </div>
 
             {/* Headline: Tech that moves you. (word-by-word) */}
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-neutral-900 tracking-tight leading-[0.98]">
+            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-neutral-900 tracking-tight leading-[1.02] sm:leading-[0.98]">
               <span className="block">
                 {headingLine1Words.map((word, idx) => (
                   <span
                     key={idx}
-                    className="animate-word mr-3.5"
+                    className="animate-word mr-2.5 sm:mr-3.5"
                     style={{ animationDelay: `${400 + idx * 100}ms` }}
                   >
                     {word}
@@ -74,7 +74,7 @@ export const Hero: React.FC<HeroProps> = ({
                 {headingLine2Words.map((word, idx) => (
                   <span
                     key={idx}
-                    className="animate-word mr-3.5"
+                    className="animate-word mr-2.5 sm:mr-3.5"
                     style={{ animationDelay: `${620 + idx * 110}ms` }}
                   >
                     {word}
@@ -84,7 +84,7 @@ export const Hero: React.FC<HeroProps> = ({
             </h1>
 
             {/* Subtext: Empowering you with Phone & PC tutorials... (word-by-word) */}
-            <p className="text-base sm:text-lg text-neutral-800 max-w-lg leading-relaxed flex flex-wrap gap-x-1.5 gap-y-1">
+            <p className="text-sm sm:text-base lg:text-lg text-neutral-800 max-w-lg leading-relaxed flex flex-wrap gap-x-1.5 gap-y-1">
               {subtextWords.map((word, idx) => {
                 const isHighlight = ['Phone', '&', 'PC', 'tutorials,'].includes(word);
                 return (
@@ -103,12 +103,12 @@ export const Hero: React.FC<HeroProps> = ({
               })}
             </p>
 
-            {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-2">
+            {/* Action Buttons: Easy touch targets (h-12 py-3) */}
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={onWatchTutorials}
-                className="inline-flex items-center gap-2.5 px-6 py-3.5 text-sm font-bold text-white bg-orange-500 hover:bg-orange-600 active:scale-95 rounded-xl shadow-lg shadow-orange-500/25 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 cursor-pointer"
+                className="h-12 px-6 py-3 text-sm font-bold text-white bg-orange-500 hover:bg-orange-600 active:scale-95 rounded-xl shadow-lg shadow-orange-500/25 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 cursor-pointer inline-flex items-center justify-center gap-2.5 flex-1 sm:flex-initial"
               >
                 <Play className="w-4 h-4 fill-white" />
                 <span>Watch tutorials</span>
@@ -117,22 +117,11 @@ export const Hero: React.FC<HeroProps> = ({
               <button
                 type="button"
                 onClick={onLiveChat}
-                className="inline-flex items-center gap-2 px-6 py-3.5 text-sm font-bold text-neutral-900 bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 active:scale-95 rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 cursor-pointer"
+                className="h-12 px-6 py-3 text-sm font-bold text-neutral-900 bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 active:scale-95 rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 cursor-pointer inline-flex items-center justify-center gap-2 flex-1 sm:flex-initial"
               >
                 <span>Live Chat</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
-
-              {onOpenSupport && (
-                <button
-                  type="button"
-                  onClick={onOpenSupport}
-                  className="inline-flex items-center gap-2 px-5 py-3.5 text-sm font-bold text-neutral-900 bg-amber-50 hover:bg-amber-100 border border-amber-300/80 active:scale-95 rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 cursor-pointer shadow-xs group"
-                >
-                  <Heart className="w-4 h-4 text-orange-500 fill-orange-500 group-hover:scale-110 transition-transform" />
-                  <span>Support (0794903078)</span>
-                </button>
-              )}
             </div>
 
             {/* Bottom-left micro badge */}
@@ -173,15 +162,15 @@ export const Hero: React.FC<HeroProps> = ({
 
           </div>
 
-          {/* Right Column: Welcome Image inside Circular Neon Glow Frame */}
-          <div className="lg:col-span-6 flex justify-center items-center py-4">
-            <div className="relative w-full max-w-[320px] sm:max-w-[400px] lg:max-w-[440px] flex items-center justify-center">
+          {/* Right Column: Welcome Image inside Circular Neon Glow Frame (Auto-scales on mobile/tablet) */}
+          <div className="w-full lg:w-auto flex justify-center items-center py-4 shrink-0">
+            <div className="relative w-64 h-64 sm:w-80 sm:h-80 lg:w-[450px] lg:h-[450px] aspect-square flex items-center justify-center">
               
               {/* Circular Neon Glow Aura */}
               <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-orange-500/35 via-amber-500/20 to-orange-600/30 blur-2xl scale-110 pointer-events-none animate-pulse" />
 
               {/* Exact Circular Frame with Neon Glow and Smooth Floating Animation */}
-              <div className="animate-float-visibility w-full aspect-square rounded-full overflow-hidden bg-neutral-900 border-4 border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.45)] ring-4 ring-orange-500/30 relative group transition-all duration-500">
+              <div className="animate-float-visibility w-full h-full aspect-square rounded-full overflow-hidden bg-neutral-900 border-4 border-orange-500 shadow-[0_0_40px_rgba(249,115,22,0.45)] ring-4 ring-orange-500/30 relative group transition-all duration-500">
                 
                 {/* The Official Creator Portrait directly from local public PNG file */}
                 <img
@@ -201,27 +190,27 @@ export const Hero: React.FC<HeroProps> = ({
               </div>
 
               {/* Floating Badge Top-Left: PHONE MASTERY */}
-              <div className="absolute -top-3 left-0 sm:left-1 bg-white/95 text-neutral-900 px-3.5 py-1.5 rounded-full shadow-lg border border-neutral-200 flex items-center gap-2 text-[11px] font-bold backdrop-blur-sm z-10 transition-transform hover:scale-105">
-                <Smartphone className="w-3.5 h-3.5 text-orange-500" />
-                <span className="tracking-wide uppercase text-[10px]">PHONE MASTERY</span>
+              <div className="absolute -top-2 left-0 sm:left-1 bg-white/95 text-neutral-900 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full shadow-lg border border-neutral-200 flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-bold backdrop-blur-sm z-10 transition-transform hover:scale-105">
+                <Smartphone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-orange-500" />
+                <span className="tracking-wide uppercase text-[9px] sm:text-[10px]">PHONE MASTERY</span>
               </div>
 
               {/* Floating Badge Top-Right: LEARN · CREATE · SHARE */}
-              <div className="absolute top-2 -right-2 sm:right-0 bg-neutral-900/85 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest text-white shadow-md border border-neutral-800 z-10">
+              <div className="absolute top-2 -right-1 sm:right-0 bg-neutral-900/85 backdrop-blur-md px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-bold tracking-widest text-white shadow-md border border-neutral-800 z-10">
                 LEARN · CREATE · SHARE
               </div>
 
               {/* Floating Badge Bottom-Right: NEW UPLOAD ▶ */}
               <div
-                className="absolute -bottom-3 right-2 sm:right-4 bg-white text-neutral-900 px-4 py-2 rounded-full shadow-xl border border-neutral-200 flex items-center gap-2 text-[11px] font-bold cursor-pointer hover:bg-orange-50 transition-all hover:scale-105 active:scale-95 z-10"
+                className="absolute -bottom-2 right-1 sm:right-4 bg-white text-neutral-900 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full shadow-xl border border-neutral-200 flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-bold cursor-pointer hover:bg-orange-50 transition-all hover:scale-105 active:scale-95 z-10"
                 onClick={onWatchTutorials}
               >
-                <span className="text-orange-600 uppercase text-[10px] tracking-wider font-extrabold">NEW UPLOAD</span>
+                <span className="text-orange-600 uppercase text-[9px] sm:text-[10px] tracking-wider font-extrabold">NEW UPLOAD</span>
                 <Play className="w-3 h-3 fill-orange-600 text-orange-600" />
               </div>
 
               {/* Floating Badge Bottom-Left: TOPSON MEDIA */}
-              <div className="absolute bottom-5 -left-2 sm:left-0 bg-neutral-900/90 backdrop-blur-md px-3.5 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase text-white shadow-md border border-neutral-700/60 z-10">
+              <div className="absolute bottom-4 -left-1 sm:left-0 bg-neutral-900/90 backdrop-blur-md px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-white shadow-md border border-neutral-700/60 z-10">
                 TOPSON MEDIA
               </div>
 

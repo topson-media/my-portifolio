@@ -22,12 +22,15 @@ import {
   INITIAL_CHAT_MESSAGES,
   TOPSON_PROFILE_IMAGE,
 } from './data/mockData';
-import { User, FeedbackItem, ChatMessage, VideoItem, EmailMessage, VisitorActivity } from './types';
+import { User, FeedbackItem, ChatMessage, VideoItem, EmailMessage, VisitorActivity, SupportDonation, VideoComment } from './types';
 import {
   subscribeToVideos,
   addVideoToDb,
   updateVideoInDb,
   deleteVideoFromDb,
+  toggleLikeVideoInDb,
+  addVideoCommentInDb,
+  incrementVideoViewsInDb,
   subscribeToFeedbacks,
   addFeedbackToDb,
   deleteFeedbackFromDb,
@@ -41,6 +44,7 @@ import {
   verifyConfirmationEmail,
   subscribeToContactSubmissions,
   replyToContactSubmissionInDb,
+  subscribeToSupportDonations,
 } from './services/firebase';
 
 export default function App() {
@@ -153,7 +157,10 @@ export default function App() {
     return INITIAL_CHAT_MESSAGES;
   });
 
-  // Real-time Firestore Subscriptions for Videos, Feedbacks, Messages, and Contact Submissions
+  // Support donations state (Loaded dynamically via Firestore listener)
+  const [supportDonations, setSupportDonations] = useState<SupportDonation[]>([]);
+
+  // Real-time Firestore Subscriptions for Videos, Feedbacks, Messages, Contact Submissions, and Support Donations
   useEffect(() => {
     const unsubVideos = subscribeToVideos((vids) => {
       setVideoList(vids);
@@ -177,11 +184,16 @@ export default function App() {
       }
     });
 
+    const unsubDonations = subscribeToSupportDonations((records) => {
+      setSupportDonations(records);
+    });
+
     return () => {
       unsubVideos();
       unsubFeedbacks();
       unsubMessages();
       unsubContacts();
+      unsubDonations();
     };
   }, []);
 
@@ -598,6 +610,74 @@ export default function App() {
     ]);
   };
 
+  // Handle user liking a video
+  const handleToggleLikeVideo = async (videoId: string) => {
+    const userId = currentUser?.id || 'guest-' + Date.now();
+    setVideoList((prev) =>
+      prev.map((vid) => {
+        if (vid.id !== videoId) return vid;
+        const likedBy = vid.likedBy || [];
+        const isLiked = likedBy.includes(userId);
+        const nextLikedBy = isLiked ? likedBy.filter((u) => u !== userId) : [...likedBy, userId];
+        const nextLikes = Math.max(0, (vid.likes || 0) + (isLiked ? -1 : 1));
+        return {
+          ...vid,
+          likes: nextLikes,
+          likedBy: nextLikedBy,
+        };
+      })
+    );
+
+    try {
+      await toggleLikeVideoInDb(videoId, userId);
+    } catch (err) {
+      console.warn('Firestore toggleLikeVideo fallback:', err);
+    }
+  };
+
+  // Handle user adding comment to video
+  const handleAddCommentToVideo = async (videoId: string, comment: VideoComment) => {
+    setVideoList((prev) =>
+      prev.map((vid) => {
+        if (vid.id !== videoId) return vid;
+        const comments = vid.comments || [];
+        return {
+          ...vid,
+          comments: [comment, ...comments],
+        };
+      })
+    );
+
+    try {
+      await addVideoCommentInDb(videoId, comment);
+    } catch (err) {
+      console.warn('Firestore addVideoComment fallback:', err);
+    }
+  };
+
+  // Handle user watching/playing video to increment views
+  const handleIncrementVideoViews = async (videoId: string) => {
+    try {
+      const updatedCount = await incrementVideoViewsInDb(videoId);
+      setVideoList((prev) =>
+        prev.map((vid) => {
+          if (vid.id !== videoId) return vid;
+          const formatted =
+            updatedCount >= 1000
+              ? `${(updatedCount / 1000).toFixed(1)}K views`
+              : `${updatedCount} views`;
+          return {
+            ...vid,
+            viewsCount: updatedCount,
+            views: formatted,
+          };
+        })
+      );
+    } catch (err) {
+      console.warn('Firestore incrementViews fallback:', err);
+    }
+  };
+
   // Handle user sending chat message (hits Firestore real-time collection)
   const handleSendMessage = async (msg: ChatMessage) => {
     const updated = [...chatMessages, msg];
@@ -654,7 +734,7 @@ export default function App() {
   }, [searchQuery, videoList]);
 
   return (
-    <div className="min-h-screen bg-white text-neutral-900 font-sans selection:bg-orange-500 selection:text-white flex flex-col justify-between">
+    <div className="min-h-screen w-full overflow-x-hidden bg-white text-neutral-900 font-sans selection:bg-orange-500 selection:text-white flex flex-col justify-between relative">
       <div>
         {/* Sticky Modern Top Navigation (With icons on every nav & Scroll-Spy active state) */}
         <Navbar
@@ -666,7 +746,6 @@ export default function App() {
           matchingCount={matchingCount}
           activeNav={activeNav}
           onNavClick={handleNavClick}
-          onOpenSupport={() => setSupportModalOpen(true)}
         />
 
         {/* Real Email Verification Success Toast */}
@@ -723,6 +802,9 @@ export default function App() {
                 onUploadVideo={handleUploadVideo}
                 onDeleteVideo={handleDeleteVideo}
                 onUpdateVideo={handleUpdateVideo}
+                onLikeVideo={handleToggleLikeVideo}
+                onAddComment={handleAddCommentToVideo}
+                onIncrementViews={handleIncrementVideoViews}
               />
 
               {/* Community Feedback Section (Unified Card) */}
@@ -764,6 +846,7 @@ export default function App() {
                 visitorActivities={visitorActivities}
                 totalVisitorsCount={totalVisitorsCount}
                 chatMessages={chatMessages}
+                supportDonations={supportDonations}
                 onSendMessage={handleSendMessage}
                 onDeleteChatMessage={handleDeleteChatMessage}
                 onMarkMessagesRead={handleMarkMessagesRead}

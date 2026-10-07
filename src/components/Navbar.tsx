@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, Sun, Moon, LogOut, ShieldCheck, Home, Film, Users, MessageSquare, Mail, Heart } from 'lucide-react';
+import { Search, X, Sun, Moon, LogOut, ShieldCheck, Home, Film, Users, MessageSquare, Mail } from 'lucide-react';
 import { User } from '../types';
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
 
@@ -16,7 +16,6 @@ interface NavbarProps {
   matchingCount: number;
   activeNav: NavSection;
   onNavClick: (section: NavSection) => void;
-  onOpenSupport?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -30,7 +29,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   matchingCount,
   activeNav,
   onNavClick,
-  onOpenSupport,
 }) => {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -194,19 +192,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
           </div>
-
-          {/* Support Button (0794903078) */}
-          {onOpenSupport && (
-            <button
-              type="button"
-              onClick={onOpenSupport}
-              className="px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl transition-all shadow-xs shadow-orange-500/25 active:scale-95 cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-              title="Support Topson Media - Send money to 0794903078"
-            >
-              <Heart className="w-3.5 h-3.5 fill-white" />
-              <span className="hidden sm:inline">Support</span>
-            </button>
-          )}
 
           {/* User Auth / Admin Account */}
           {currentUser ? (

@@ -29,7 +29,8 @@ import {
   BarChart3,
   ThumbsUp,
   Flame,
-  PieChart
+  PieChart,
+  Heart
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -47,9 +48,9 @@ import {
   Legend,
   Cell
 } from 'recharts';
-import { User, VideoItem, FeedbackItem, EmailMessage, VisitorActivity, ChatMessage } from '../types';
+import { User, VideoItem, FeedbackItem, EmailMessage, VisitorActivity, ChatMessage, SupportDonation } from '../types';
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
-import { getYouTubeThumbnail, extractYouTubeId } from '../utils/youtubeHelper';
+import { getYouTubeThumbnail, extractYouTubeId, fetchYouTubeVideoDetails } from '../utils/youtubeHelper';
 import { WhatsAppBrandBadge, WhatsAppIcon } from './WhatsAppIcon';
 import { AdminChatDashboard } from './AdminChatDashboard';
 
@@ -61,6 +62,7 @@ interface AdminDashboardProps {
   visitorActivities: VisitorActivity[];
   totalVisitorsCount: number;
   chatMessages?: ChatMessage[];
+  supportDonations?: SupportDonation[];
   onSendMessage?: (msg: ChatMessage) => void;
   onDeleteChatMessage?: (msgId: string, mode: 'everyone' | 'me') => void;
   onMarkMessagesRead?: (ids: string[]) => void;
