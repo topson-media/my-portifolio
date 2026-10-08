@@ -17,7 +17,10 @@ import {
   Send,
   Image as ImageIcon,
   Sparkles,
+  Radio,
+  ArrowUpRight,
 } from 'lucide-react';
+import { WatchPartyModal } from './WatchPartyModal';
 import { VideoItem, VideoComment, User } from '../types';
 import {
   getYouTubeThumbnail,
@@ -45,6 +48,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
   videos,
   searchQuery,
   currentUser = null,
+  onOpenAdminAuth,
   onUploadVideo,
   onDeleteVideo,
   onUpdateVideo,
@@ -54,6 +58,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
   isStandalonePage = false,
 }) => {
   const [activeVideo, setActiveVideo] = useState<VideoItem | null>(null);
+  const [watchPartyVideo, setWatchPartyVideo] = useState<VideoItem | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [activePlayingId, setActivePlayingId] = useState<string | null>(null);
 
@@ -455,7 +460,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
           </div>
         )}
 
-        {/* AUTOMATIC MULTI-COLUMN COMPACT GRID (1 col mobile, 2 cols tablet, 3 cols desktop) */}
+        {/* AUTOMATIC MULTI-COLUMN COMPACT GRID (2 cols mobile, 3 cols tablet & desktop) */}
         {displayedVideos.length === 0 ? (
           <div className="rounded-3xl p-12 bg-white border border-neutral-200 text-center space-y-3">
             <Film className="w-12 h-12 text-neutral-400 mx-auto" />
@@ -463,7 +468,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
             <p className="text-xs text-neutral-600">Try adjusting your search query.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-5 lg:gap-6 w-full">
             {displayedVideos.map((video) => {
               const isExpanded = !!expandedCards[video.id];
               const isLink = isVideoLink(video);
@@ -484,7 +489,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
               return (
                 <div
                   key={video.id}
-                  className="w-full group rounded-2xl overflow-hidden bg-white border border-neutral-200 shadow-xs hover:shadow-lg hover:border-orange-500/50 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+                  className="w-full group rounded-xl sm:rounded-2xl overflow-hidden bg-white border border-neutral-200 shadow-xs hover:shadow-lg hover:border-orange-500/50 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
                 >
                   <div>
                     {/* Media Area: 16:9 ratio */}
@@ -499,7 +504,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                             className="w-full h-full object-contain bg-black"
                             onClick={(e) => e.stopPropagation()}
                           />
-                          <div className="absolute top-2 right-2 flex items-center gap-1 z-20">
+                          <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 flex items-center gap-1 z-20">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -539,22 +544,22 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
 
                           {/* Duration badge */}
-                          <div className="absolute bottom-2 right-2 flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/85 text-[10px] font-semibold text-white">
-                            <Clock className="w-2.5 h-2.5" />
+                          <div className="absolute bottom-1.5 right-1.5 sm:bottom-2 sm:right-2 flex items-center gap-0.5 sm:gap-1 px-1 sm:px-1.5 py-0.5 rounded bg-black/85 text-[8px] sm:text-[10px] font-semibold text-white">
+                            <Clock className="w-2 sm:w-2.5 h-2 sm:h-2.5" />
                             <span>{video.duration}</span>
                           </div>
 
                           {/* Link badge vs Video badge */}
                           {isLink ? (
-                            <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-red-600 text-[9px] font-bold text-white shadow-sm">
-                              <svg className="w-2.5 h-2.5 fill-white" viewBox="0 0 24 24">
+                            <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded bg-red-600 text-[8px] sm:text-[9px] font-bold text-white shadow-sm">
+                              <svg className="w-2 sm:w-2.5 h-2 sm:h-2.5 fill-white" viewBox="0 0 24 24">
                                 <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
                               </svg>
                               <span>YouTube</span>
                             </div>
                           ) : (
-                            <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-black/80 text-[9px] font-semibold text-white">
-                              <Film className="w-2.5 h-2.5 text-orange-400" />
+                            <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded bg-black/80 text-[8px] sm:text-[9px] font-semibold text-white">
+                              <Film className="w-2 sm:w-2.5 h-2 sm:h-2.5 text-orange-400" />
                               <span>Video</span>
                             </div>
                           )}
@@ -562,12 +567,12 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                           {/* Hover action banner */}
                           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity bg-black/40">
                             {isLink ? (
-                              <div className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600 text-white font-bold text-xs shadow-md">
+                              <div className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-red-600 text-white font-bold text-xs shadow-md">
                                 <LinkIcon className="w-3.5 h-3.5" />
                                 <span>Open Video</span>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-neutral-950 font-bold text-xs shadow-md">
+                              <div className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-white text-neutral-950 font-bold text-xs shadow-md">
                                 <Play className="w-3.5 h-3.5 fill-neutral-950 ml-0.5" />
                                 <span>Play Tutorial</span>
                               </div>
@@ -578,15 +583,15 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                     </div>
 
                     {/* Metadata & Title */}
-                    <div className="p-4">
-                      <div className="flex items-center justify-between gap-1 text-[11px] text-neutral-500 font-semibold mb-2">
-                        <div className="flex items-center gap-1.5 truncate">
+                    <div className="p-2.5 sm:p-4">
+                      <div className="flex items-center justify-between gap-1 text-[9px] sm:text-[11px] text-neutral-500 font-semibold mb-1.5 sm:mb-2">
+                        <div className="flex items-center gap-1 truncate">
                           <span>{video.date}</span>
                           <span>·</span>
                           <span className="text-neutral-700 font-bold">{video.views}</span>
                         </div>
                         <span
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 font-bold text-[9px] border border-orange-200/50 shrink-0"
+                          className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 font-bold text-[9px] border border-orange-200/50 shrink-0"
                           title="Estimated reading time"
                         >
                           <BookOpen className="w-2.5 h-2.5" />
@@ -609,15 +614,15 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
 
                       <h3
                         onClick={(e) => handleCardClick(video, e)}
-                        className="text-sm font-bold text-neutral-900 leading-snug hover:text-orange-600 transition-colors cursor-pointer line-clamp-2"
+                        className="text-xs sm:text-sm font-bold text-neutral-900 leading-snug hover:text-orange-600 transition-colors cursor-pointer line-clamp-2"
                         title={video.title}
                       >
                         {video.title}
                       </h3>
 
                       {isExpanded && (
-                        <div className="mt-2.5 pt-2.5 border-t border-neutral-100 animate-in fade-in space-y-2">
-                          <p className="text-xs text-neutral-600 leading-relaxed">
+                        <div className="mt-2 pt-2 border-t border-neutral-100 animate-in fade-in space-y-1.5 sm:space-y-2">
+                          <p className="text-[11px] sm:text-xs text-neutral-600 leading-relaxed">
                             {video.description}
                           </p>
 
@@ -626,7 +631,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                               {cleanTags.map((tag) => (
                                 <span
                                   key={tag}
-                                  className="text-[10px] font-semibold text-neutral-700 bg-neutral-100 px-2 py-0.5 rounded-md"
+                                  className="text-[9px] sm:text-[10px] font-semibold text-neutral-700 bg-neutral-100 px-1.5 sm:px-2 py-0.5 rounded-md"
                                 >
                                   #{tag}
                                 </span>
@@ -638,21 +643,21 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                     </div>
                   </div>
 
-                  {/* Card Action Bar: Like & Comment on every post + Expand Details */}
-                  <div className="px-4 py-3 border-t border-neutral-100 flex items-center justify-between card-action-element">
-                    <div className="flex items-center gap-3">
+                  {/* Card Action Bar: Like, Comment, Watch Party + Expand Details */}
+                  <div className="px-2 sm:px-4 py-2 sm:py-3 border-t border-neutral-100 flex items-center justify-between card-action-element">
+                    <div className="flex items-center gap-1.5 sm:gap-3">
                       {/* Like button */}
                       <button
                         type="button"
                         onClick={(e) => handleLikeClick(video, e)}
-                        className={`inline-flex items-center gap-1 text-xs font-bold transition-all cursor-pointer ${
+                        className={`inline-flex items-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
                           isLiked
                             ? 'text-rose-600'
                             : 'text-neutral-600 hover:text-rose-600'
                         }`}
                         title={isLiked ? 'Unlike' : 'Like this post'}
                       >
-                        <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+                        <Heart className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${isLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
                         <span>{likesCount}</span>
                       </button>
 
@@ -663,80 +668,95 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                           e.stopPropagation();
                           setActiveVideo(video);
                         }}
-                        className="inline-flex items-center gap-1 text-xs font-bold text-neutral-600 hover:text-orange-600 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-neutral-600 hover:text-orange-600 transition-colors cursor-pointer"
                         title="View comments"
                       >
-                        <MessageSquare className="w-3.5 h-3.5 text-neutral-500" />
+                        <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-neutral-500" />
                         <span>{commentsCount}</span>
+                      </button>
+
+                      {/* Watch Party button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setWatchPartyVideo(video);
+                        }}
+                        className="inline-flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-[11px] font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded sm:rounded-lg transition-colors cursor-pointer border border-orange-200/50"
+                        title="Watch together with synchronized playback"
+                      >
+                        <Radio className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-orange-500 animate-pulse" />
+                        <span>Party</span>
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 sm:gap-2">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setExpandedCards((prev) => ({ ...prev, [video.id]: !prev[video.id] }));
                         }}
-                        className="inline-flex items-center gap-0.5 text-[11px] font-bold text-neutral-500 hover:text-neutral-900 cursor-pointer"
+                        className="inline-flex items-center gap-0.5 text-[10px] sm:text-[11px] font-bold text-neutral-500 hover:text-neutral-900 cursor-pointer"
                       >
                         <span>{isExpanded ? 'Less' : 'More'}</span>
-                        {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        {isExpanded ? <ChevronUp className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> : <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3" />}
                       </button>
 
                       {/* Admin Quick Actions */}
                       {currentUser?.role === 'admin' && (
-                        <div className="flex items-center gap-1 ml-1 border-l border-neutral-200 pl-2">
+                        <div className="flex items-center gap-0.5 ml-0.5 sm:ml-1 border-l border-neutral-200 pl-1 sm:pl-2">
                           <button
                             type="button"
                             onClick={(e) => handleOpenEditVideo(video, e)}
-                            className="p-1 rounded text-neutral-500 hover:text-orange-600 hover:bg-neutral-100 cursor-pointer"
+                            className="p-0.5 sm:p-1 rounded text-neutral-500 hover:text-orange-600 hover:bg-neutral-100 cursor-pointer"
                             title="Edit"
                           >
-                            <Edit3 className="w-3.5 h-3.5" />
+                            <Edit3 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={(e) => handleDeleteVideoConfirm(video, e)}
-                            className="p-1 rounded text-neutral-500 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                            className="p-0.5 sm:p-1 rounded text-neutral-500 hover:text-red-600 hover:bg-red-50 cursor-pointer"
                             title="Delete"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                           </button>
                         </div>
                       )}
                     </div>
                   </div>
-
                 </div>
               );
             })}
           </div>
         )}
 
-        {/* PROMINENT "VIEW MORE ON YOUTUBE" SECTION UNDER THE 6 TUTORIALS */}
-        <div className="mt-14 p-8 sm:p-10 rounded-3xl bg-neutral-50 border border-neutral-200 text-center flex flex-col items-center justify-center gap-4 max-w-3xl mx-auto shadow-xs">
-          <div className="w-12 h-12 rounded-2xl bg-red-600/10 text-red-600 flex items-center justify-center mb-1">
-            <svg className="w-6 h-6 fill-red-600" viewBox="0 0 24 24">
-              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-            </svg>
+        {/* COMPACT & MINIMALIST PREMIUM YOUTUBE CALL-TO-ACTION CARD WIDGET */}
+        <div className="mt-8 sm:mt-10 p-3.5 sm:p-4 rounded-2xl bg-neutral-50 border border-neutral-200/90 shadow-2xs max-w-2xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-red-600/10 text-red-600 flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 fill-red-600" viewBox="0 0 24 24">
+                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-bold text-neutral-900 truncate">
+                More tutorials available on YouTube
+              </h4>
+              <p className="text-[11px] text-neutral-500 font-medium truncate">
+                Watch 50+ complete phone and PC workflows on our channel.
+              </p>
+            </div>
           </div>
-          <h3 className="text-xl sm:text-2xl font-black text-neutral-900">
-            Other tutorials are available on YouTube
-          </h3>
-          <p className="text-xs sm:text-sm text-neutral-700 max-w-md leading-relaxed font-normal">
-            Showing our top 6 featured tutorials. Watch the complete library of 50+ phone guides, PC tweaks, and tech workflows on our official channel.
-          </p>
           <a
             href="https://www.youtube.com/@topson-media1"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-3 px-8 py-3.5 rounded-2xl font-bold text-sm sm:text-base text-white bg-[#FF0000] hover:bg-[#CC0000] active:scale-95 shadow-md shadow-red-500/25 transition-all cursor-pointer mt-1"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#FF0000] hover:bg-[#CC0000] active:scale-95 transition-all shadow-xs cursor-pointer shrink-0"
           >
-            <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
-              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-            </svg>
-            <span>View more on YouTube</span>
+            <span>View more</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
           </a>
         </div>
 
@@ -820,19 +840,35 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                     </div>
                   </div>
 
-                  {/* Like Button */}
-                  <button
-                    type="button"
-                    onClick={(e) => handleLikeClick(activeVideo, e)}
-                    className={`h-10 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border shrink-0 ${
-                      activeVideo.likedBy?.includes(currentUser?.id || 'guest')
-                        ? 'bg-rose-50 text-rose-600 border-rose-200'
-                        : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700 border-neutral-200'
-                    }`}
-                  >
-                    <Heart className={`w-4 h-4 ${activeVideo.likedBy?.includes(currentUser?.id || 'guest') ? 'fill-rose-500 text-rose-500' : ''}`} />
-                    <span>{activeVideo.likes || 0} Likes</span>
-                  </button>
+                  {/* Action Buttons: Watch Party + Like Button */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const v = activeVideo;
+                        setActiveVideo(null);
+                        setWatchPartyVideo(v);
+                      }}
+                      className="h-10 px-3.5 py-2 rounded-xl text-xs font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200/80 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Launch synchronized Watch Party"
+                    >
+                      <Radio className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
+                      <span>Watch Party</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => handleLikeClick(activeVideo, e)}
+                      className={`h-10 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border shrink-0 ${
+                        activeVideo.likedBy?.includes(currentUser?.id || 'guest')
+                          ? 'bg-rose-50 text-rose-600 border-rose-200'
+                          : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700 border-neutral-200'
+                      }`}
+                    >
+                      <Heart className={`w-4 h-4 ${activeVideo.likedBy?.includes(currentUser?.id || 'guest') ? 'fill-rose-500 text-rose-500' : ''}`} />
+                      <span>{activeVideo.likes || 0} Likes</span>
+                    </button>
+                  </div>
                 </div>
 
                 <p className="text-xs sm:text-sm text-neutral-700 leading-relaxed">
@@ -1215,6 +1251,16 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
               )}
             </div>
           </div>
+        )}
+
+        {/* Watch Party Synchronized Live Room Modal */}
+        {watchPartyVideo && (
+          <WatchPartyModal
+            video={watchPartyVideo}
+            currentUser={currentUser}
+            onClose={() => setWatchPartyVideo(null)}
+            onOpenAuth={onOpenAdminAuth}
+          />
         )}
 
       </div>

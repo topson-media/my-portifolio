@@ -6,14 +6,12 @@ interface HeroProps {
   onWatchTutorials: () => void;
   onLiveChat: () => void;
   onExploreScroll: () => void;
-  onOpenSupport?: () => void;
 }
 
 export const Hero: React.FC<HeroProps> = ({
   onWatchTutorials,
   onLiveChat,
   onExploreScroll,
-  onOpenSupport,
 }) => {
   // Word arrays for word-by-word animation
   const kickerWords = ['THE', 'EVERYDAY', 'TECH', 'ADVANTAGE'];
@@ -34,15 +32,15 @@ export const Hero: React.FC<HeroProps> = ({
   ];
 
   return (
-    <section id="hero" className="relative overflow-hidden pt-10 pb-16 lg:py-20 bg-white scroll-mt-20">
+    <section id="hero" className="relative overflow-hidden pt-8 pb-12 sm:pt-10 sm:pb-16 lg:py-20 bg-white scroll-mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        <div className="flex flex-col-reverse lg:flex-row items-center justify-between gap-8 lg:gap-12 w-full">
+        <div className="flex flex-col-reverse md:grid md:grid-cols-2 md:items-center md:gap-6 lg:flex lg:flex-row lg:items-center lg:justify-between lg:gap-12 w-full">
           
-          {/* Left Column: Bold Headline & Animated Copy (Underneath image on mobile/tablet) */}
-          <div className="w-full lg:max-w-xl flex flex-col items-start space-y-6 sm:space-y-7">
+          {/* Left Column: Bold Headline & Animated Copy (Underneath image on mobile, Left side on tablet/desktop) */}
+          <div className="w-full md:max-w-none lg:max-w-xl flex flex-col items-start space-y-4 sm:space-y-6 lg:space-y-7">
             
-            {/* Kicker: • THE EVERYDAY TECH ADVANTAGE (word-by-word) */}
-            <div className="flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-neutral-800">
+            {/* Kicker: • THE EVERYDAY TECH ADVANTAGE */}
+            <div className="flex items-center gap-2 text-[11px] sm:text-xs font-bold tracking-widest uppercase text-neutral-800">
               <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
               <div className="flex flex-wrap gap-x-1.5">
                 {kickerWords.map((word, idx) => (
@@ -57,8 +55,14 @@ export const Hero: React.FC<HeroProps> = ({
               </div>
             </div>
 
-            {/* Headline: Tech that moves you. (word-by-word) */}
-            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-neutral-900 tracking-tight leading-[1.02] sm:leading-[0.98]">
+            {/* Mobile-Summarized Headline (< md) */}
+            <h1 className="md:hidden text-3xl font-black text-neutral-900 tracking-tight leading-[1.08]">
+              <span className="block">Tech that</span>
+              <span className="block text-orange-500">moves you.</span>
+            </h1>
+
+            {/* Desktop Full Animated Headline (>= md) */}
+            <h1 className="hidden md:block text-5xl lg:text-7xl font-black text-neutral-900 tracking-tight leading-[0.98]">
               <span className="block">
                 {headingLine1Words.map((word, idx) => (
                   <span
@@ -83,8 +87,13 @@ export const Hero: React.FC<HeroProps> = ({
               </span>
             </h1>
 
-            {/* Subtext: Empowering you with Phone & PC tutorials... (word-by-word) */}
-            <p className="text-sm sm:text-base lg:text-lg text-neutral-800 max-w-lg leading-relaxed flex flex-wrap gap-x-1.5 gap-y-1">
+            {/* Mobile-Summarized Subtext (< md) */}
+            <p className="md:hidden text-xs text-neutral-700 leading-relaxed font-medium">
+              Quick phone &amp; PC walkthroughs, tips, and digital skills made simple.
+            </p>
+
+            {/* Desktop Full Animated Subtext (>= md) */}
+            <p className="hidden md:flex text-base lg:text-lg text-neutral-800 max-w-lg leading-relaxed flex-wrap gap-x-1.5 gap-y-1">
               {subtextWords.map((word, idx) => {
                 const isHighlight = ['Phone', '&', 'PC', 'tutorials,'].includes(word);
                 return (
@@ -104,7 +113,7 @@ export const Hero: React.FC<HeroProps> = ({
             </p>
 
             {/* Action Buttons: Easy touch targets (h-12 py-3) */}
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-2 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-1 sm:pt-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={onWatchTutorials}
@@ -125,10 +134,10 @@ export const Hero: React.FC<HeroProps> = ({
             </div>
 
             {/* Bottom-left micro badge */}
-            <div className="pt-6 border-t border-neutral-200 w-full flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="pt-4 sm:pt-6 border-t border-neutral-200 w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-orange-500/80 p-0.5 bg-white shadow-sm">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-orange-500/80 p-0.5 bg-white shadow-sm">
                     <img
                       src={TOPSON_PROFILE_IMAGE}
                       alt="Topson Media Profile"
@@ -162,9 +171,9 @@ export const Hero: React.FC<HeroProps> = ({
 
           </div>
 
-          {/* Right Column: Welcome Image inside Circular Neon Glow Frame (Auto-scales on mobile/tablet) */}
-          <div className="w-full lg:w-auto flex justify-center items-center py-4 shrink-0">
-            <div className="relative w-64 h-64 sm:w-80 sm:h-80 lg:w-[450px] lg:h-[450px] aspect-square flex items-center justify-center">
+          {/* Right Column: Welcome Image inside Circular Neon Glow Frame (At top center on mobile, right on tablet/desktop) */}
+          <div className="w-full md:w-full lg:w-auto flex justify-center items-center py-2 sm:py-4 shrink-0">
+            <div className="relative w-52 h-52 sm:w-60 sm:h-60 md:w-76 md:h-76 lg:w-[450px] lg:h-[450px] aspect-square flex items-center justify-center mx-auto">
               
               {/* Circular Neon Glow Aura */}
               <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-orange-500/35 via-amber-500/20 to-orange-600/30 blur-2xl scale-110 pointer-events-none animate-pulse" />
@@ -189,28 +198,28 @@ export const Hero: React.FC<HeroProps> = ({
                 <div className="absolute inset-0 rounded-full pointer-events-none ring-1 ring-inset ring-orange-400/30" />
               </div>
 
-              {/* Floating Badge Top-Left: PHONE MASTERY */}
-              <div className="absolute -top-2 left-0 sm:left-1 bg-white/95 text-neutral-900 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full shadow-lg border border-neutral-200 flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-bold backdrop-blur-sm z-10 transition-transform hover:scale-105">
+              {/* Floating Badge Top-Left: PHONE MASTERY (Hidden on mobile) */}
+              <div className="hidden md:flex absolute -top-2 left-0 sm:left-1 bg-white/95 text-neutral-900 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full shadow-lg border border-neutral-200 items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-bold backdrop-blur-sm z-10 transition-transform hover:scale-105">
                 <Smartphone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-orange-500" />
                 <span className="tracking-wide uppercase text-[9px] sm:text-[10px]">PHONE MASTERY</span>
               </div>
 
-              {/* Floating Badge Top-Right: LEARN · CREATE · SHARE */}
-              <div className="absolute top-2 -right-1 sm:right-0 bg-neutral-900/85 backdrop-blur-md px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-bold tracking-widest text-white shadow-md border border-neutral-800 z-10">
+              {/* Floating Badge Top-Right: LEARN · CREATE · SHARE (Hidden on mobile) */}
+              <div className="hidden md:flex absolute top-2 -right-1 sm:right-0 bg-neutral-900/85 backdrop-blur-md px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-bold tracking-widest text-white shadow-md border border-neutral-800 z-10">
                 LEARN · CREATE · SHARE
               </div>
 
-              {/* Floating Badge Bottom-Right: NEW UPLOAD ▶ */}
+              {/* Floating Badge Bottom-Right: NEW UPLOAD ▶ (Hidden on mobile) */}
               <div
-                className="absolute -bottom-2 right-1 sm:right-4 bg-white text-neutral-900 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full shadow-xl border border-neutral-200 flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-bold cursor-pointer hover:bg-orange-50 transition-all hover:scale-105 active:scale-95 z-10"
+                className="hidden md:flex absolute -bottom-2 right-1 sm:right-4 bg-white text-neutral-900 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full shadow-xl border border-neutral-200 items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-bold cursor-pointer hover:bg-orange-50 transition-all hover:scale-105 active:scale-95 z-10"
                 onClick={onWatchTutorials}
               >
                 <span className="text-orange-600 uppercase text-[9px] sm:text-[10px] tracking-wider font-extrabold">NEW UPLOAD</span>
                 <Play className="w-3 h-3 fill-orange-600 text-orange-600" />
               </div>
 
-              {/* Floating Badge Bottom-Left: TOPSON MEDIA */}
-              <div className="absolute bottom-4 -left-1 sm:left-0 bg-neutral-900/90 backdrop-blur-md px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-white shadow-md border border-neutral-700/60 z-10">
+              {/* Floating Badge Bottom-Left: TOPSON MEDIA (Hidden on mobile) */}
+              <div className="hidden md:flex absolute bottom-4 -left-1 sm:left-0 bg-neutral-900/90 backdrop-blur-md px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-white shadow-md border border-neutral-700/60 z-10">
                 TOPSON MEDIA
               </div>
 

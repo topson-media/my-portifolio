@@ -15,14 +15,13 @@ import { ContactSection } from './components/ContactSection';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Footer } from './components/Footer';
 import { AuthModal } from './components/AuthModal';
-import { SupportModal } from './components/SupportModal';
 import {
   INITIAL_VIDEOS,
   INITIAL_FEEDBACKS,
   INITIAL_CHAT_MESSAGES,
   TOPSON_PROFILE_IMAGE,
 } from './data/mockData';
-import { User, FeedbackItem, ChatMessage, VideoItem, EmailMessage, VisitorActivity, SupportDonation, VideoComment } from './types';
+import { User, FeedbackItem, ChatMessage, VideoItem, EmailMessage, VisitorActivity, VideoComment } from './types';
 import {
   subscribeToVideos,
   addVideoToDb,
@@ -44,7 +43,6 @@ import {
   verifyConfirmationEmail,
   subscribeToContactSubmissions,
   replyToContactSubmissionInDb,
-  subscribeToSupportDonations,
 } from './services/firebase';
 
 export default function App() {
@@ -77,7 +75,6 @@ export default function App() {
 
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup' | 'admin'>('signin');
-  const [supportModalOpen, setSupportModalOpen] = useState<boolean>(false);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -157,10 +154,7 @@ export default function App() {
     return INITIAL_CHAT_MESSAGES;
   });
 
-  // Support donations state (Loaded dynamically via Firestore listener)
-  const [supportDonations, setSupportDonations] = useState<SupportDonation[]>([]);
-
-  // Real-time Firestore Subscriptions for Videos, Feedbacks, Messages, Contact Submissions, and Support Donations
+  // Real-time Firestore Subscriptions for Videos, Feedbacks, Messages, and Contact Submissions
   useEffect(() => {
     const unsubVideos = subscribeToVideos((vids) => {
       setVideoList(vids);
@@ -184,16 +178,11 @@ export default function App() {
       }
     });
 
-    const unsubDonations = subscribeToSupportDonations((records) => {
-      setSupportDonations(records);
-    });
-
     return () => {
       unsubVideos();
       unsubFeedbacks();
       unsubMessages();
       unsubContacts();
-      unsubDonations();
     };
   }, []);
 
@@ -782,7 +771,6 @@ export default function App() {
                   const el = document.getElementById('about');
                   el?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                onOpenSupport={() => setSupportModalOpen(true)}
               />
 
               {/* About / Mission Section */}
@@ -846,7 +834,6 @@ export default function App() {
                 visitorActivities={visitorActivities}
                 totalVisitorsCount={totalVisitorsCount}
                 chatMessages={chatMessages}
-                supportDonations={supportDonations}
                 onSendMessage={handleSendMessage}
                 onDeleteChatMessage={handleDeleteChatMessage}
                 onMarkMessagesRead={handleMarkMessagesRead}
@@ -865,7 +852,7 @@ export default function App() {
       </div>
 
       {/* Global Footer */}
-      <Footer onOpenSupport={() => setSupportModalOpen(true)} />
+      <Footer />
 
       {/* Glassmorphic Auth Modal */}
       <AuthModal
@@ -873,12 +860,6 @@ export default function App() {
         onClose={() => setAuthModalOpen(false)}
         onSuccess={handleAuthSuccess}
         initialMode={authMode}
-      />
-
-      {/* Mobile Money Direct Support Modal (Recipient: 0794903078) */}
-      <SupportModal
-        isOpen={supportModalOpen}
-        onClose={() => setSupportModalOpen(false)}
       />
     </div>
   );

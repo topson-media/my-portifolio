@@ -19,7 +19,7 @@ import { VideoItem, FeedbackItem, ChatMessage, User, EmailMessage, VideoComment 
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
 
 // Initialize Firebase App
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 // Initialize Cloud Firestore with dedicated databaseId
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -787,84 +787,5 @@ export async function loginUserFromDb(identifier: string, password?: string): Pr
   return { success: false, error: 'not_found' };
 }
 
-// ---------------------------------------------------------------------------
-// 6. SUPPORT & MOBILE MONEY DONATIONS (Target: 0794903078 - Topson Media)
-// ---------------------------------------------------------------------------
-export interface SupportDonation {
-  id: string;
-  senderPhone: string;
-  recipientPhone: string;
-  amount: number;
-  currency: string;
-  reference: string;
-  timestamp: string;
-  status: 'completed' | 'pending';
-}
-
-export async function addSupportDonationToDb(donation: Omit<SupportDonation, 'id' | 'recipientPhone' | 'reference' | 'timestamp' | 'status'>): Promise<SupportDonation> {
-  const id = 'sup-' + Date.now();
-  const refCode = 'MOMO-' + Math.floor(100000 + Math.random() * 900000);
-  const now = new Date();
-  const timestamp = now.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  const record: SupportDonation = {
-    id,
-    senderPhone: donation.senderPhone.trim(),
-    recipientPhone: '0794903078',
-    amount: donation.amount,
-    currency: donation.currency || 'RWF',
-    reference: refCode,
-    timestamp,
-    status: 'completed',
-  };
-
-  try {
-    const docRef = doc(db, 'support_donations', id);
-    await setDoc(docRef, {
-      ...record,
-      createdAt: Date.now(),
-    });
-  } catch (err) {
-    console.warn('Firestore addSupportDonation fallback:', err);
-  }
-
-  return record;
-}
-
-export function subscribeToSupportDonations(callback: (donations: SupportDonation[]) => void) {
-  try {
-    const q = query(collection(db, 'support_donations'), orderBy('createdAt', 'desc'));
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const donations: SupportDonation[] = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          donations.push({
-            id: docSnap.id,
-            senderPhone: data.senderPhone || '',
-            recipientPhone: data.recipientPhone || '0794903078',
-            amount: typeof data.amount === 'number' ? data.amount : 0,
-            currency: data.currency || 'RWF',
-            reference: data.reference || '',
-            timestamp: data.timestamp || 'Just now',
-            status: data.status || 'completed',
-          });
-        });
-        callback(donations);
-      },
-      (err) => {
-        console.warn('Firestore support_donations subscription fallback:', err);
-      }
-    );
-  } catch (e) {
-    console.error('Error listening to support donations:', e);
-    return () => {};
-  }
-}
+// End of services
 

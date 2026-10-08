@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   ShieldCheck,
   UploadCloud,
@@ -48,7 +48,7 @@ import {
   Legend,
   Cell
 } from 'recharts';
-import { User, VideoItem, FeedbackItem, EmailMessage, VisitorActivity, ChatMessage, SupportDonation } from '../types';
+import { User, VideoItem, FeedbackItem, EmailMessage, VisitorActivity, ChatMessage } from '../types';
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
 import { getYouTubeThumbnail, extractYouTubeId, fetchYouTubeVideoDetails } from '../utils/youtubeHelper';
 import { WhatsAppBrandBadge, WhatsAppIcon } from './WhatsAppIcon';
@@ -62,7 +62,6 @@ interface AdminDashboardProps {
   visitorActivities: VisitorActivity[];
   totalVisitorsCount: number;
   chatMessages?: ChatMessage[];
-  supportDonations?: SupportDonation[];
   onSendMessage?: (msg: ChatMessage) => void;
   onDeleteChatMessage?: (msgId: string, mode: 'everyone' | 'me') => void;
   onMarkMessagesRead?: (ids: string[]) => void;
@@ -104,7 +103,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [videoLink, setVideoLink] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
   const [deviceFilePreviewUrl, setDeviceFilePreviewUrl] = useState<string | null>(null);
+  const [deviceThumbnailUrl, setDeviceThumbnailUrl] = useState<string | null>(null);
+  const [deviceThumbnailName, setDeviceThumbnailName] = useState<string>('');
+  const [detectedYouTubeViews, setDetectedYouTubeViews] = useState<string>('');
+  const [isDetectingYt, setIsDetectingYt] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
   const [videoTitle, setVideoTitle] = useState('');
   const [videoCategory, setVideoCategory] = useState<string>('Phone Mastery');
@@ -255,6 +259,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
   }, [videos]);
 
+  // Auto YouTube views detection
+  useEffect(() => {
+    if (uploadType === 'link' && videoLink.trim()) {
+      const yId = extractYouTubeId(videoLink.trim());
+      if (yId) {
+        setIsDetectingYt(true);
+        fetchYouTubeVideoDetails(yId)
+          .then((details) => {
+            if (details.views) {
+              setDetectedYouTubeViews(details.views);
+            }
+            if (details.duration && !videoDuration) {
+              setVideoDuration(details.duration);
+            }
+            if (details.title && !videoTitle) {
+              setVideoTitle(details.title);
+            }
+          })
+          .catch((err) => console.warn('YouTube details fetch err:', err))
+          .finally(() => setIsDetectingYt(false));
+      }
+    }
+  }, [uploadType, videoLink]);
+
   const handleDeviceFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -265,6 +293,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
       const previewUrl = URL.createObjectURL(file);
       setDeviceFilePreviewUrl(previewUrl);
+
+      // Auto-detect duration from video metadata
+      const tempVideo = document.createElement('video');
+      tempVideo.preload = 'metadata';
+      tempVideo.onloadedmetadata = () => {
+        const totalSec = Math.round(tempVideo.duration);
+        const mins = Math.floor(totalSec / 60);
+        const secs = totalSec % 60;
+        const durFormatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        setVideoDuration(durFormatted);
+      };
+      tempVideo.src = previewUrl;
+    }
+  };
+
+  const handleDeviceThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setDeviceThumbnailName(file.name);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        if (ev.target?.result) {
+          setDeviceThumbnailUrl(ev.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -274,7 +328,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     // Automatic YouTube thumbnail extraction when pasting a YouTube/reel link!
     const ytThumb = uploadType === 'link' ? getYouTubeThumbnail(videoLink.trim()) : null;
-    const finalThumbnail = ytThumb || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
+    const finalThumbnail =
+      deviceThumbnailUrl ||
+      ytThumb ||
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
+
+    const finalViews =
+      uploadType === 'link'
+        ? detectedYouTubeViews || '1.5K views'
+        : '0 views';
 
     const categoryTag =
       videoCategory === 'Dev Workflows'
@@ -288,13 +350,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       title: videoTitle.trim(),
       category: videoCategory,
       duration: videoDuration.trim() || '10:00',
-      views: '1.5K views',
+      views: finalViews,
+      viewsCount: uploadType === 'device' ? 0 : 1500,
       date: 'Just now',
       thumbnail: finalThumbnail,
       videoUrl: uploadType === 'link' ? videoLink.trim() : deviceFilePreviewUrl || '',
       sourceType: uploadType,
       description: videoDescription.trim() || `Practical guide on ${videoTitle.trim()}`,
       tags: [categoryTag, uploadType === 'device' ? 'From Device' : 'YouTube Link'],
+      likes: 0,
+      likedBy: [],
+      comments: [],
     };
 
     onUploadVideo(newVid);
@@ -302,6 +368,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setVideoLink('');
     setSelectedFileName('');
     setDeviceFilePreviewUrl(null);
+    setDeviceThumbnailUrl(null);
+    setDeviceThumbnailName('');
+    setDetectedYouTubeViews('');
     setVideoDescription('');
     setUploadSuccess(true);
     setTimeout(() => setUploadSuccess(false), 3000);
@@ -800,8 +869,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
 
-              {/* Total Email Messages (3 cols) */}
-              <div className="lg:col-span-3 p-5 sm:p-6 rounded-3xl bg-white border border-neutral-200 shadow-sm relative overflow-hidden group hover:border-orange-500/40 transition-all flex flex-col justify-between">
+              {/* Total Email Messages (4 cols) */}
+              <div className="lg:col-span-4 p-5 sm:p-6 rounded-3xl bg-white border border-neutral-200 shadow-sm relative overflow-hidden group hover:border-orange-500/40 transition-all flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
@@ -1594,6 +1663,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <p className="text-[11px] text-neutral-500 mt-0.5">MP4, WebM, MOV supported</p>
                             </div>
                           )}
+                        </div>
+                        {videoDuration && selectedFileName && (
+                          <p className="text-[11px] text-emerald-600 font-semibold mt-1">
+                            ✓ Detected Duration: {videoDuration}
+                          </p>
+                        )}
+
+                        {/* Custom Thumbnail Selection from Device */}
+                        <div className="mt-3">
+                          <label className="block text-xs font-bold text-neutral-800 mb-1">
+                            Custom Thumbnail from Device
+                          </label>
+                          <input
+                            ref={thumbnailInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleDeviceThumbnailChange}
+                            className="hidden"
+                          />
+                          <div
+                            onClick={() => thumbnailInputRef.current?.click()}
+                            className="w-full p-3 rounded-xl border border-dashed border-neutral-300 hover:border-neutral-500 bg-neutral-50 flex items-center justify-between cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center gap-2 text-xs font-semibold text-neutral-700">
+                              <ImageIcon className="w-4 h-4 text-orange-500" />
+                              <span className="truncate">
+                                {deviceThumbnailName ? deviceThumbnailName : 'Select thumbnail image from device'}
+                              </span>
+                            </div>
+                            {deviceThumbnailUrl && (
+                              <div className="w-12 h-8 rounded-lg overflow-hidden border border-neutral-200 shrink-0">
+                                <img src={deviceThumbnailUrl} alt="Thumbnail preview" className="w-full h-full object-cover" />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, Sun, Moon, LogOut, ShieldCheck, Home, Film, Users, MessageSquare, Mail } from 'lucide-react';
+import { Search, X, Menu, Sun, Moon, LogOut, ShieldCheck, Home, Film, Users, MessageSquare, Mail, ChevronRight } from 'lucide-react';
 import { User } from '../types';
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
 
@@ -31,7 +31,31 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavClick,
 }) => {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Close mobile menu on resize to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Lock background scroll when mobile transparent overlay is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.classList.add('overflow-hidden');
+    } else {
+      document.body.classList.remove('overflow-hidden');
+    }
+    return () => {
+      document.body.classList.remove('overflow-hidden');
+    };
+  }, [mobileMenuOpen]);
 
   // Keyboard shortcut '/' to focus search
   useEffect(() => {
@@ -53,43 +77,48 @@ export const Navbar: React.FC<NavbarProps> = ({
     {
       label: 'Home',
       id: 'home',
-      icon: <Home className="w-3.5 h-3.5 text-cyan-600 transition-colors" />,
+      icon: <Home className="w-4 h-4 text-cyan-600 transition-colors" />,
     },
     {
-      label: 'Tutorials',
+      label: 'Videos',
       id: 'tutorials',
-      icon: <Film className="w-3.5 h-3.5 text-orange-500 transition-colors" />,
+      icon: <Film className="w-4 h-4 text-orange-500 transition-colors" />,
     },
     {
       label: 'Community',
       id: 'community',
-      icon: <Users className="w-3.5 h-3.5 text-purple-600 transition-colors" />,
+      icon: <Users className="w-4 h-4 text-purple-600 transition-colors" />,
     },
     {
       label: 'Live Chat',
       id: 'chat',
-      icon: <MessageSquare className="w-3.5 h-3.5 text-blue-500 transition-colors" />,
+      icon: <MessageSquare className="w-4 h-4 text-blue-500 transition-colors" />,
     },
     {
       label: 'Contact',
       id: 'contact',
-      icon: <Mail className="w-3.5 h-3.5 text-amber-500 transition-colors" />,
+      icon: <Mail className="w-4 h-4 text-amber-500 transition-colors" />,
     },
   ];
 
+  const handleNavSelect = (id: NavSection) => {
+    onNavClick(id);
+    setMobileMenuOpen(false);
+  };
+
   return (
-    <header className="sticky top-0 z-40 w-full backdrop-blur-md transition-colors duration-200 border-b border-neutral-200 bg-white/95">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3 flex-nowrap overflow-x-auto custom-scrollbar">
+    <header className="sticky top-0 z-40 w-full backdrop-blur-md transition-colors duration-200 border-b border-neutral-200 bg-white/95 overflow-x-hidden">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex flex-row items-center justify-between gap-2 sm:gap-3 w-full">
         
         {/* Left: Brand Logo & Wordmark */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           <button
             type="button"
             onClick={() => onNavClick('home')}
-            className="flex items-center gap-2.5 focus-visible:outline-none rounded-lg group text-left cursor-pointer"
+            className="flex items-center gap-2 sm:gap-2.5 focus-visible:outline-none rounded-lg group text-left cursor-pointer"
             aria-label="Topson Media Home"
           >
-            <div className="w-9 h-9 rounded-full overflow-hidden border border-neutral-300 bg-white shrink-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full overflow-hidden border border-neutral-300 bg-white shrink-0 shadow-2xs">
               <img
                 src={TOPSON_PROFILE_IMAGE}
                 alt="Topson Media Logo"
@@ -97,22 +126,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="w-full h-full object-cover rounded-full"
               />
             </div>
-            <span className="text-sm sm:text-base font-black tracking-wider uppercase text-neutral-900 whitespace-nowrap">
+            <span className="text-xs sm:text-base font-black tracking-wider uppercase text-neutral-900 whitespace-nowrap">
               TOPSON MEDIA
             </span>
           </button>
         </div>
 
-        {/* Center: Navigation Links in a SINGLE LINE with relevant icon before each nav */}
-        <nav className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap shrink-0">
+        {/* Center: Desktop Navigation Links (HIDDEN on Mobile Devices) */}
+        <nav className="hidden md:flex items-center gap-1 lg:gap-2 text-xs lg:text-sm whitespace-nowrap shrink-0">
           {navItems.map((item) => {
             const isActive = activeNav === item.id;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => onNavClick(item.id)}
-                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-bold flex items-center gap-1.5 ${
+                onClick={() => handleNavSelect(item.id)}
+                className={`px-2.5 lg:px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-bold flex items-center gap-1 lg:gap-1.5 ${
                   isActive
                     ? 'bg-neutral-900 text-white shadow-2xs'
                     : 'text-neutral-700 hover:text-neutral-950 hover:bg-neutral-100'
@@ -128,7 +157,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {currentUser?.role === 'admin' && (
             <button
               type="button"
-              onClick={() => onNavClick('admin')}
+              onClick={() => handleNavSelect('admin')}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
                 activeNav === 'admin'
                   ? 'bg-neutral-900 text-white border-neutral-900'
@@ -142,8 +171,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </nav>
 
-        {/* Right: Small-to-Big Search + Theme + Auth */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Right: Search Bar + Hamburger (Mobile) / Search + Desktop Auth */}
+        <div className="flex flex-row items-center gap-1.5 sm:gap-2 md:gap-2.5 lg:gap-3 shrink-0">
           
           {/* Functional Dynamic Search: placeholder="search" */}
           <div className="relative">
@@ -165,8 +194,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 placeholder="search"
                 className={`py-1.5 sm:py-2 text-xs sm:text-sm rounded-full transition-all duration-300 ease-out focus:outline-none ${
                   isSearchFocused || searchQuery
-                    ? 'w-48 sm:w-64 md:w-72 pl-9 pr-8 bg-white border border-neutral-900 text-neutral-900'
-                    : 'w-24 sm:w-32 pl-8 pr-3 bg-neutral-100 border border-neutral-200 text-neutral-900 placeholder:text-neutral-500 hover:border-neutral-400 cursor-pointer font-medium'
+                    ? 'w-32 xs:w-44 sm:w-56 md:w-40 lg:w-72 pl-8 sm:pl-9 pr-7 sm:pr-8 bg-white border border-neutral-900 text-neutral-900'
+                    : 'w-20 xs:w-28 sm:w-28 md:w-24 lg:w-32 pl-7 sm:pl-8 pr-2.5 sm:pr-3 bg-neutral-100 border border-neutral-200 text-neutral-900 placeholder:text-neutral-500 hover:border-neutral-400 cursor-pointer font-medium'
                 }`}
               />
               <Search className="absolute left-2.5 w-3.5 h-3.5 text-neutral-500 pointer-events-none" />
@@ -174,17 +203,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={() => onSearchChange('')}
-                  className="absolute right-2.5 p-0.5 rounded-full text-neutral-400 hover:text-neutral-900 cursor-pointer"
+                  className="absolute right-2 p-0.5 rounded-full text-neutral-400 hover:text-neutral-900 cursor-pointer"
                   aria-label="Clear search"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>
               )}
             </div>
 
             {/* Quick search match counter popup */}
             {searchQuery && (
-              <div className="absolute top-full mt-1.5 right-0 w-52 py-2 px-3 bg-white rounded-xl shadow-lg border border-neutral-200 text-xs text-neutral-800 flex items-center justify-between z-50">
+              <div className="absolute top-full mt-1.5 right-0 w-48 sm:w-52 py-2 px-3 bg-white rounded-xl shadow-lg border border-neutral-200 text-xs text-neutral-800 flex items-center justify-between z-50">
                 <span className="font-medium">Matching tutorials:</span>
                 <span className="font-bold text-neutral-900 bg-neutral-100 px-2 py-0.5 rounded">
                   {matchingCount} found
@@ -193,61 +222,200 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* User Auth / Admin Account */}
-          {currentUser ? (
-            <div className="flex items-center gap-2 pl-2 border-l border-neutral-200">
-              <div
-                className="w-8 h-8 rounded-full overflow-hidden border border-neutral-300 bg-white shrink-0 flex items-center justify-center shadow-2xs"
-                title={currentUser.role === 'admin' ? 'Admin: Topson Media' : currentUser.username}
-              >
-                {currentUser.avatarUrl ? (
-                  <img
-                    src={currentUser.avatarUrl}
-                    alt={currentUser.username}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover rounded-full"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-neutral-900 text-white font-bold text-xs flex items-center justify-center">
-                    {currentUser.username.slice(0, 1).toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <div className="hidden xl:flex flex-col text-left max-w-[100px]">
-                <span className="text-xs font-bold text-neutral-900 truncate">
-                  {currentUser.username}
-                </span>
-                {currentUser.role === 'admin' && (
-                  <span className="text-[9px] uppercase tracking-wider font-extrabold text-orange-600 -mt-0.5">
-                    Admin
+          {/* Desktop User Auth / Admin Account (Hidden on Mobile) */}
+          <div className="hidden md:flex items-center">
+            {currentUser ? (
+              <div className="flex items-center gap-2 pl-2 border-l border-neutral-200">
+                <div
+                  className="w-8 h-8 rounded-full overflow-hidden border border-neutral-300 bg-white shrink-0 flex items-center justify-center shadow-2xs"
+                  title={currentUser.role === 'admin' ? 'Admin: Topson Media' : currentUser.username}
+                >
+                  {currentUser.avatarUrl ? (
+                    <img
+                      src={currentUser.avatarUrl}
+                      alt={currentUser.username}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover rounded-full"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-neutral-900 text-white font-bold text-xs flex items-center justify-center">
+                      {currentUser.username.slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="hidden xl:flex flex-col text-left max-w-[100px]">
+                  <span className="text-xs font-bold text-neutral-900 truncate">
+                    {currentUser.username}
                   </span>
-                )}
+                  {currentUser.role === 'admin' && (
+                    <span className="text-[9px] uppercase tracking-wider font-extrabold text-orange-600 -mt-0.5">
+                      Admin
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  title="Sign out"
+                  className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={onLogout}
-                title="Sign out"
-                className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
-                aria-label="Sign out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => onOpenAuth('signin')}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs font-bold text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl transition-all shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap"
-              >
-                Sign in
-              </button>
-            </div>
-          )}
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth('signin')}
+                  className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs font-bold text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl transition-all shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap"
+                >
+                  Sign in
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Modern Sleek Hamburger Menu Icon on Mobile */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-1.5 sm:p-2 rounded-xl text-neutral-800 hover:text-neutral-950 hover:bg-neutral-100 transition-colors cursor-pointer active:scale-95 shrink-0"
+            aria-label="Toggle navigation drawer"
+            aria-expanded={mobileMenuOpen}
+          >
+            {mobileMenuOpen ? (
+              <X className="w-5 h-5 text-neutral-900" />
+            ) : (
+              <Menu className="w-5 h-5 text-neutral-900" />
+            )}
+          </button>
 
         </div>
 
       </div>
+
+      {/* Instant Transparent Glassmorphism Overlay Menu with Absolute Device Lock */}
+      {mobileMenuOpen && (
+        <div
+          className={`fixed top-0 left-0 w-full h-screen z-50 md:hidden flex flex-col justify-between ${
+            isDarkMode
+              ? 'bg-black/80 text-white'
+              : 'bg-white/80 text-neutral-900'
+          } backdrop-blur-lg animate-in fade-in duration-150`}
+        >
+          {/* Top Bar with Brand & Top-Right "X" (Close) Icon */}
+          <div className="w-full flex items-center justify-between px-6 pt-5 pb-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full overflow-hidden border border-neutral-300 bg-white shrink-0 shadow-xs">
+                <img
+                  src={TOPSON_PROFILE_IMAGE}
+                  alt="Topson Media Logo"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover rounded-full"
+                />
+              </div>
+              <span className="text-sm font-black tracking-wider uppercase">
+                TOPSON MEDIA
+              </span>
+            </div>
+
+            {/* "X" (Close) Icon in top right corner */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              className="p-2.5 rounded-full hover:bg-neutral-500/15 transition-colors cursor-pointer active:scale-95"
+              aria-label="Close menu"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Centered Navigation Routes & Signout in a Premium Tech Stack */}
+          <div className="flex-1 flex flex-col items-center justify-center space-y-7 px-6 text-center">
+            <nav className="flex flex-col items-center space-y-6">
+              {navItems.map((item) => {
+                const isActive = activeNav === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleNavSelect(item.id)}
+                    className={`text-2xl sm:text-3xl font-black tracking-tight transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2.5 ${
+                      isActive
+                        ? 'text-orange-500 drop-shadow-[0_0_12px_rgba(249,115,22,0.6)]'
+                        : isDarkMode
+                          ? 'text-neutral-100 hover:text-orange-400 hover:drop-shadow-[0_0_12px_rgba(249,115,22,0.6)]'
+                          : 'text-neutral-900 hover:text-orange-500 hover:drop-shadow-[0_0_12px_rgba(249,115,22,0.6)]'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+
+              {/* Admin Studio inside overlay if user is admin */}
+              {currentUser?.role === 'admin' && (
+                <button
+                  type="button"
+                  onClick={() => handleNavSelect('admin')}
+                  className={`text-xl sm:text-2xl font-black tracking-tight transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2 ${
+                    activeNav === 'admin'
+                      ? 'text-orange-500 drop-shadow-[0_0_12px_rgba(249,115,22,0.6)]'
+                      : 'text-amber-600 hover:text-orange-500 hover:drop-shadow-[0_0_12px_rgba(249,115,22,0.6)]'
+                  }`}
+                >
+                  <ShieldCheck className="w-5 h-5 text-orange-500" />
+                  <span>Admin Studio</span>
+                </button>
+              )}
+            </nav>
+
+            {/* INTEGRATE SIGNOUT BUTTON DIRECTLY AT THE BOTTOM OF THE LIST */}
+            <div className="pt-6 flex flex-col items-center gap-3">
+              {currentUser && (
+                <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                  Signed in as <span className="font-bold text-neutral-900 dark:text-white">{currentUser.username}</span>
+                </div>
+              )}
+
+              <div className="flex flex-row items-center justify-center gap-3">
+                {!currentUser ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenAuth('signin');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="px-6 py-2.5 rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 text-sm font-bold shadow-sm cursor-pointer transition-all active:scale-95"
+                  >
+                    Sign In
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onLogout();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="border border-red-500/50 text-red-500 hover:bg-red-500/10 hover:border-red-500 rounded-lg px-6 py-2.5 font-bold text-sm tracking-wide transition-all inline-flex items-center gap-2 cursor-pointer shadow-sm active:scale-95"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Signout</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Subtle Bottom Brand Watermark */}
+          <div className="pb-6 text-center">
+            <span className="text-[10px] font-bold text-neutral-400 tracking-widest uppercase">
+              Topson Media · Mobile Tech Hub
+            </span>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

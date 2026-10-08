@@ -276,7 +276,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({
           </div>
         )}
 
-        {/* 3. AUTOMATIC MULTI-COLUMN COMPACT GRID (1 col mobile, 2 col tablet, 3 col desktop) */}
+        {/* 3. AUTOMATIC MULTI-COLUMN COMPACT GRID (1 col mobile, 3 col tablet & desktop) */}
         {visibleFeedbacks.length === 0 ? (
           <div className="rounded-3xl p-10 bg-white border border-neutral-200 shadow-sm text-center flex flex-col items-center justify-center min-h-[260px] space-y-3">
             <div className="w-14 h-14 rounded-2xl bg-neutral-100 flex items-center justify-center text-neutral-400">
@@ -288,7 +288,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5 md:gap-6 w-full">
             {visibleFeedbacks.map((fb) => {
               const isLiked = !!fb.userLiked;
               const likesCount = fb.likes || 0;
@@ -299,35 +299,35 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({
               return (
                 <div
                   key={fb.id}
-                  className="w-full group rounded-3xl p-5 sm:p-6 bg-white border border-neutral-200 shadow-2xs hover:shadow-md hover:border-orange-500/40 transition-all duration-300 flex flex-col justify-between"
+                  className="w-full group rounded-3xl p-4 sm:p-6 bg-white border border-neutral-200/90 shadow-[0_4px_20px_rgba(249,115,22,0.12)] hover:shadow-[0_6px_28px_rgba(249,115,22,0.2)] hover:border-orange-500/40 transition-all duration-300 flex flex-col justify-between"
                 >
                   <div>
-                    {/* Header: Author Identity & Rating */}
-                    <div className="flex items-start justify-between gap-3 pb-3 border-b border-neutral-100">
-                      <div className="flex items-center gap-3 min-w-0">
+                    {/* Header: Author Identity & Rating (Centered on mobile per design spec) */}
+                    <div className="flex flex-col items-center text-center sm:flex-row sm:items-start sm:text-left justify-between gap-2.5 sm:gap-3 pb-3 border-b border-neutral-100">
+                      <div className="flex flex-col items-center sm:flex-row sm:items-center gap-2 sm:gap-3 min-w-0">
                         {fb.avatarUrl ? (
                           <img
                             src={fb.avatarUrl}
                             alt={fb.authorName}
                             referrerPolicy="no-referrer"
-                            className="w-10 h-10 rounded-full object-cover border border-neutral-200 shrink-0 shadow-2xs"
+                            className="w-10 h-10 rounded-full object-cover border-2 border-orange-500/40 shrink-0 shadow-2xs"
                           />
                         ) : (
-                          <div className="w-10 h-10 rounded-full bg-neutral-900 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs">
+                          <div className="w-10 h-10 rounded-full bg-neutral-900 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs ring-2 ring-orange-500/30">
                             {fb.authorName.slice(0, 1).toUpperCase()}
                           </div>
                         )}
 
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-bold text-neutral-900 truncate">
+                          <div className="flex items-center justify-center sm:justify-start gap-1.5">
+                            <span className="text-xs sm:text-sm font-bold text-neutral-900 truncate">
                               {fb.authorName}
                             </span>
                             {fb.verified && (
                               <CheckCircle2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                             )}
                           </div>
-                          <div className="text-[11px] text-neutral-500 font-medium truncate">
+                          <div className="text-[10px] sm:text-[11px] text-neutral-500 font-medium truncate">
                             {fb.authorRole || 'Community Member'}
                           </div>
                         </div>
@@ -348,10 +348,10 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({
                       </div>
                     </div>
 
-                    {/* Content Quote */}
-                    <div className="pt-3.5 pb-2 relative">
-                      <Quote className="w-6 h-6 text-neutral-200/60 absolute -top-1 -left-1 -z-0 pointer-events-none" />
-                      <p className="text-xs sm:text-sm text-neutral-800 leading-relaxed font-normal relative z-10 break-words">
+                    {/* Content Quote (Shrunk font on mobile) */}
+                    <div className="pt-3 pb-2 relative text-center sm:text-left">
+                      <Quote className="w-5 h-5 sm:w-6 sm:h-6 text-neutral-200/60 absolute -top-1 left-0 sm:-left-1 -z-0 pointer-events-none" />
+                      <p className="text-[11px] sm:text-sm text-neutral-800 leading-relaxed font-normal relative z-10 break-words px-1 sm:px-0">
                         &ldquo;{fb.content}&rdquo;
                       </p>
                     </div>

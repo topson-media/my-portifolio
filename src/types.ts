@@ -97,13 +97,42 @@ export interface VisitorActivity {
   userIpOrName?: string;
 }
 
-export interface SupportDonation {
+export interface WatchPartyAttendee {
   id: string;
-  senderPhone: string;
-  recipientPhone: string;
-  amount: number;
-  currency: string;
-  reference: string;
+  userId: string;
+  username: string;
+  avatarUrl?: string;
+  currentTime: number; // in seconds
+  duration: number; // in seconds
+  isPlaying: boolean;
+  isHost: boolean;
+  lastPing: number;
+  color: string;
+}
+
+export interface WatchPartyMessage {
+  id: string;
+  senderName: string;
+  senderAvatar?: string;
+  text: string;
   timestamp: string;
-  status: 'completed' | 'pending' | 'failed';
+}
+
+export interface WatchPartyRoom {
+  id: string;
+  videoId: string;
+  videoTitle: string;
+  videoThumbnail?: string;
+  videoUrl?: string;
+  youtubeId?: string;
+  sourceType: 'link' | 'device';
+  hostId: string;
+  hostName: string;
+  currentTime: number;
+  duration: number;
+  isPlaying: boolean;
+  lastUpdated: number;
+  attendees: Record<string, WatchPartyAttendee>;
+  reactions?: { id: string; emoji: string; sender: string; timestamp: number }[];
+  messages?: WatchPartyMessage[];
 }
