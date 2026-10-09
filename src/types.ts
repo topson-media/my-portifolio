@@ -5,6 +5,9 @@ export interface User {
   avatarUrl?: string;
   role?: 'admin' | 'creator' | 'member';
   joinedDate: string;
+  visitsCount?: number;
+  fanBadge?: boolean;
+  fanBadgeOffered?: boolean;
 }
 
 export interface ChatMessage {
@@ -12,6 +15,7 @@ export interface ChatMessage {
   sender: 'topson' | 'user';
   senderName: string;
   userId?: string;
+  user_id?: string;
   userEmail?: string;
   targetUserId?: string;
   text: string;
@@ -39,11 +43,14 @@ export interface FeedbackItem {
   avatarUrl: string;
   rating: number;
   date: string;
+  createdAt?: number | string;
   content: string;
   verified: boolean;
   likes?: number;
   userLiked?: boolean;
+  likedBy?: string[];
   hidden?: boolean;
+  hasFanBadge?: boolean;
   replies?: FeedbackReply[];
 }
 
@@ -54,6 +61,8 @@ export interface VideoComment {
   userId?: string;
   text: string;
   timestamp: string;
+  createdAt?: number | string;
+  hasFanBadge?: boolean;
 }
 
 export interface VideoItem {
@@ -63,7 +72,10 @@ export interface VideoItem {
   duration: string;
   views: string;
   viewsCount?: number;
+  viewedBy?: string[];
   date: string;
+  createdAt?: number | string;
+  uploadTimestamp?: number | string;
   thumbnail: string;
   youtubeId?: string;
   videoUrl?: string;

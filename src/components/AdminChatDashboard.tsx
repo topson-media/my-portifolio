@@ -169,6 +169,7 @@ export const AdminChatDashboard: React.FC<AdminChatDashboardProps> = ({
       sender: 'topson',
       senderName: 'Topson Media (Admin)',
       userId: selectedUserId === 'all-public' ? undefined : selectedUserId,
+      user_id: selectedUserId === 'all-public' ? undefined : selectedUserId,
       targetUserId: selectedUserId === 'all-public' ? undefined : selectedUserId,
       text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),

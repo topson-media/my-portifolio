@@ -12,7 +12,8 @@ import {
   query,
   orderBy,
   limit,
-  getDocFromServer
+  getDocFromServer,
+  where
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { VideoItem, FeedbackItem, ChatMessage, User, EmailMessage, VideoComment } from '../types';
@@ -107,25 +108,34 @@ export async function updateVideoInDb(video: VideoItem): Promise<void> {
   });
 }
 
-export async function incrementVideoViewsInDb(videoId: string): Promise<number> {
+export async function incrementVideoViewsInDb(videoId: string, userId?: string): Promise<{ viewsCount: number; viewed: boolean }> {
   try {
     const docRef = doc(db, 'videos', videoId);
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       const data = snap.data();
       const current = typeof data.viewsCount === 'number' ? data.viewsCount : 0;
+      const viewedBy: string[] = Array.isArray(data.viewedBy) ? data.viewedBy : [];
+
+      // ONE ACCOUNT ONE VIEW RULE: If user already viewed, do NOT increment
+      if (userId && viewedBy.includes(userId)) {
+        return { viewsCount: current, viewed: false };
+      }
+
       const next = current + 1;
+      const nextViewedBy = userId ? [...viewedBy, userId] : viewedBy;
       const formatted = next >= 1000 ? `${(next / 1000).toFixed(1)}K views` : `${next} views`;
       await updateDoc(docRef, {
         viewsCount: next,
         views: formatted,
+        viewedBy: nextViewedBy,
       });
-      return next;
+      return { viewsCount: next, viewed: true };
     }
   } catch (err) {
     console.warn('Failed to increment views in DB:', err);
   }
-  return 1;
+  return { viewsCount: 1, viewed: true };
 }
 
 export async function toggleLikeVideoInDb(videoId: string, userId: string): Promise<{ liked: boolean; count: number }> {
@@ -199,7 +209,8 @@ export function subscribeToFeedbacks(callback: (feedbacks: FeedbackItem[]) => vo
             date: data.date || 'Just now',
             content: data.content || '',
             verified: !!data.verified,
-            likes: data.likes || 0,
+            likes: typeof data.likes === 'number' ? data.likes : 0,
+            likedBy: Array.isArray(data.likedBy) ? data.likedBy : [],
             hidden: !!data.hidden,
             replies: Array.isArray(data.replies) ? data.replies : [],
           });
@@ -220,16 +231,39 @@ export async function addFeedbackToDb(feedback: FeedbackItem): Promise<void> {
   const docRef = doc(db, 'feedbacks', feedback.id);
   await setDoc(docRef, {
     ...feedback,
+    likes: feedback.likes || 0,
+    likedBy: feedback.likedBy || [],
     hidden: false,
     createdAt: Date.now(),
   });
 }
 
-export async function toggleLikeFeedbackInDb(feedbackId: string, newLikesCount: number): Promise<void> {
-  const docRef = doc(db, 'feedbacks', feedbackId);
-  await updateDoc(docRef, {
-    likes: newLikesCount,
-  });
+export async function toggleLikeFeedbackInDb(feedbackId: string, userIdOrCount: string | number): Promise<void> {
+  try {
+    const docRef = doc(db, 'feedbacks', feedbackId);
+    if (typeof userIdOrCount === 'number') {
+      await updateDoc(docRef, {
+        likes: userIdOrCount,
+      });
+      return;
+    }
+    const userId = userIdOrCount;
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      const currentLikes = typeof data.likes === 'number' ? data.likes : 0;
+      const likedBy: string[] = Array.isArray(data.likedBy) ? data.likedBy : [];
+      const hasLiked = likedBy.includes(userId);
+      const nextLikedBy = hasLiked ? likedBy.filter((id) => id !== userId) : [...likedBy, userId];
+      const nextCount = Math.max(0, hasLiked ? currentLikes - 1 : currentLikes + 1);
+      await updateDoc(docRef, {
+        likes: nextCount,
+        likedBy: nextLikedBy,
+      });
+    }
+  } catch (err) {
+    console.warn('Failed to toggle feedback like in DB:', err);
+  }
 }
 
 export async function hideFeedbackInDb(feedbackId: string, hidden: boolean): Promise<void> {
@@ -244,11 +278,24 @@ export async function deleteFeedbackFromDb(feedbackId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// 3. LIVE CHAT MESSAGES (Real-time Database Listener & Stream)
+// 3. LIVE CHAT MESSAGES (Real-time Database Listener & Private Stream)
 // ---------------------------------------------------------------------------
-export function subscribeToMessages(callback: (messages: ChatMessage[]) => void) {
+export function subscribeToMessages(callback: (messages: ChatMessage[]) => void, currentUser?: User | null) {
   try {
-    const q = query(collection(db, 'messages'), orderBy('createdAt', 'asc'));
+    let q;
+    if (currentUser?.role === 'admin') {
+      // The Admin account is authorized to access and load all open chat threads from every user
+      q = query(collection(db, 'messages'), orderBy('createdAt', 'asc'));
+    } else if (currentUser) {
+      // Regular authenticated users must ONLY be able to see their own private conversation history
+      // Filter strictly where user_id == current_logged_in_user_id
+      q = query(collection(db, 'messages'), where('user_id', '==', currentUser.id));
+    } else {
+      // Unauthenticated visitor: do not load private chat messages
+      callback([]);
+      return () => {};
+    }
+
     return onSnapshot(
       q,
       (snapshot) => {
@@ -259,15 +306,20 @@ export function subscribeToMessages(callback: (messages: ChatMessage[]) => void)
             id: docSnap.id,
             sender: data.sender || 'user',
             senderName: data.senderName || 'Viewer',
-            userId: data.userId,
+            userId: data.userId || data.user_id,
+            user_id: data.user_id || data.userId,
             userEmail: data.userEmail,
             targetUserId: data.targetUserId,
             text: data.text || '',
             timestamp: data.timestamp || '',
             avatarUrl: data.avatarUrl,
             isRead: !!data.isRead,
-          });
+            createdAt: data.createdAt,
+          } as ChatMessage);
         });
+
+        // Chronological sort in memory
+        messages.sort((a: any, b: any) => (a.createdAt || 0) - (b.createdAt || 0));
         callback(messages);
       },
       (error) => {
@@ -282,9 +334,12 @@ export function subscribeToMessages(callback: (messages: ChatMessage[]) => void)
 
 export async function sendMessageToDb(message: ChatMessage): Promise<void> {
   const docRef = doc(db, 'messages', message.id);
+  const userIdVal = message.user_id || message.userId || message.targetUserId || '';
   await setDoc(docRef, {
     ...message,
-    createdAt: Date.now(),
+    user_id: userIdVal,
+    userId: userIdVal,
+    createdAt: (message as any).createdAt || Date.now(),
   });
 }
 
@@ -787,5 +842,210 @@ export async function loginUserFromDb(identifier: string, password?: string): Pr
   return { success: false, error: 'not_found' };
 }
 
+// ---------------------------------------------------------------------------
+// 7. USER MANAGEMENT & FAN BADGES (Admin Control & Visitor Tracking)
+// ---------------------------------------------------------------------------
+export async function fetchUsersListFromDb(): Promise<User[]> {
+  const usersMap = new Map<string, User>();
+
+  // 1. Load from Firestore
+  try {
+    const snap = await getDocs(collection(db, 'users'));
+    snap.forEach((docSnap) => {
+      const data = docSnap.data();
+      usersMap.set(docSnap.id, {
+        id: docSnap.id,
+        username: data.username || 'User',
+        email: data.email || '',
+        avatarUrl: data.avatarUrl || '',
+        role: data.role || 'member',
+        joinedDate: data.joinedDate || 'Recently joined',
+        visitsCount: typeof data.visitsCount === 'number' ? data.visitsCount : 1,
+        fanBadge: !!data.fanBadge,
+        fanBadgeOffered: !!data.fanBadgeOffered,
+      });
+    });
+  } catch (err) {
+    console.warn('Firestore fetchUsers error:', err);
+  }
+
+  // 2. Merge with locally saved accounts
+  try {
+    const raw = localStorage.getItem('topson_registered_accounts');
+    if (raw) {
+      const accounts: User[] = JSON.parse(raw);
+      accounts.forEach((acc) => {
+        if (!usersMap.has(acc.id)) {
+          usersMap.set(acc.id, acc);
+        } else {
+          // Merge local badge/visits if newer
+          const existing = usersMap.get(acc.id)!;
+          usersMap.set(acc.id, {
+            ...existing,
+            visitsCount: Math.max(existing.visitsCount || 1, acc.visitsCount || 1),
+            fanBadge: existing.fanBadge || acc.fanBadge,
+            fanBadgeOffered: existing.fanBadgeOffered || acc.fanBadgeOffered,
+          });
+        }
+      });
+    }
+  } catch {
+    // ignore
+  }
+
+  return Array.from(usersMap.values());
+}
+
+export async function deleteUserFromDb(userId: string): Promise<void> {
+  // 1. Delete from Firestore
+  try {
+    await deleteDoc(doc(db, 'users', userId));
+  } catch (err) {
+    console.warn('Firestore deleteUser error:', err);
+  }
+
+  // 2. Remove from local accounts
+  try {
+    const raw = localStorage.getItem('topson_registered_accounts');
+    if (raw) {
+      const accounts: User[] = JSON.parse(raw);
+      const filtered = accounts.filter((a) => a.id !== userId);
+      localStorage.setItem('topson_registered_accounts', JSON.stringify(filtered));
+    }
+    const current = localStorage.getItem('topson_user');
+    if (current) {
+      const parsed: User = JSON.parse(current);
+      if (parsed.id === userId) {
+        localStorage.removeItem('topson_user');
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export async function recordUserVisitInDb(userId: string): Promise<number> {
+  let nextCount = 1;
+  try {
+    const docRef = doc(db, 'users', userId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      const current = typeof data.visitsCount === 'number' ? data.visitsCount : 1;
+      nextCount = current + 1;
+      await updateDoc(docRef, {
+        visitsCount: nextCount,
+        lastVisited: Date.now(),
+      });
+    }
+  } catch (err) {
+    console.warn('Firestore recordUserVisit error:', err);
+  }
+
+  // Also update local storage
+  try {
+    const raw = localStorage.getItem('topson_registered_accounts');
+    if (raw) {
+      const accounts: User[] = JSON.parse(raw);
+      const updated = accounts.map((a) =>
+        a.id === userId ? { ...a, visitsCount: (a.visitsCount || 1) + 1 } : a
+      );
+      localStorage.setItem('topson_registered_accounts', JSON.stringify(updated));
+    }
+    const current = localStorage.getItem('topson_user');
+    if (current) {
+      const parsed: User = JSON.parse(current);
+      if (parsed.id === userId) {
+        parsed.visitsCount = (parsed.visitsCount || 1) + 1;
+        localStorage.setItem('topson_user', JSON.stringify(parsed));
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return nextCount;
+}
+
+export async function awardFanBadgeInDb(userId: string): Promise<void> {
+  // Admin awards badge -> sets fanBadgeOffered to true so user can accept
+  try {
+    const docRef = doc(db, 'users', userId);
+    await updateDoc(docRef, {
+      fanBadgeOffered: true,
+      fanBadge: false,
+    });
+  } catch (err) {
+    console.warn('Firestore awardFanBadge error:', err);
+  }
+
+  // Update in local accounts
+  try {
+    const raw = localStorage.getItem('topson_registered_accounts');
+    if (raw) {
+      const accounts: User[] = JSON.parse(raw);
+      const updated = accounts.map((a) =>
+        a.id === userId ? { ...a, fanBadgeOffered: true, fanBadge: false } : a
+      );
+      localStorage.setItem('topson_registered_accounts', JSON.stringify(updated));
+    }
+    const current = localStorage.getItem('topson_user');
+    if (current) {
+      const parsed: User = JSON.parse(current);
+      if (parsed.id === userId) {
+        parsed.fanBadgeOffered = true;
+        localStorage.setItem('topson_user', JSON.stringify(parsed));
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export async function acceptFanBadgeInDb(userId: string): Promise<User | null> {
+  // User accepts badge -> fanBadge becomes true, fanBadgeOffered becomes false
+  try {
+    const docRef = doc(db, 'users', userId);
+    await updateDoc(docRef, {
+      fanBadge: true,
+      fanBadgeOffered: false,
+    });
+  } catch (err) {
+    console.warn('Firestore acceptFanBadge error:', err);
+  }
+
+  let updatedUser: User | null = null;
+  try {
+    const raw = localStorage.getItem('topson_registered_accounts');
+    if (raw) {
+      const accounts: User[] = JSON.parse(raw);
+      const updated = accounts.map((a) => {
+        if (a.id === userId) {
+          const u = { ...a, fanBadge: true, fanBadgeOffered: false };
+          updatedUser = u;
+          return u;
+        }
+        return a;
+      });
+      localStorage.setItem('topson_registered_accounts', JSON.stringify(updated));
+    }
+    const current = localStorage.getItem('topson_user');
+    if (current) {
+      const parsed: User = JSON.parse(current);
+      if (parsed.id === userId) {
+        parsed.fanBadge = true;
+        parsed.fanBadgeOffered = false;
+        updatedUser = parsed;
+        localStorage.setItem('topson_user', JSON.stringify(parsed));
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return updatedUser;
+}
+
 // End of services
+
 

@@ -29,6 +29,8 @@ import {
   formatViewsCount,
   formatVideoDuration,
 } from '../utils/youtubeHelper';
+import { extractVideoDurationFromFile } from '../utils/videoDuration';
+import { formatUploadedTimeAgo, formatTimeAgo } from '../utils/timeAgo';
 
 interface VideoGalleryProps {
   videos: VideoItem[];
@@ -172,17 +174,10 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
       const previewUrl = URL.createObjectURL(file);
       setDeviceFilePreviewUrl(previewUrl);
 
-      // Auto-detect duration from video metadata
-      const tempVideo = document.createElement('video');
-      tempVideo.preload = 'metadata';
-      tempVideo.onloadedmetadata = () => {
-        const totalSec = Math.round(tempVideo.duration);
-        const mins = Math.floor(totalSec / 60);
-        const secs = totalSec % 60;
-        const durFormatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      // Extract and store duration using URL.createObjectURL and onloadedmetadata helper
+      extractVideoDurationFromFile(file).then((durFormatted) => {
         setNewDuration(durFormatted);
-      };
-      tempVideo.src = previewUrl;
+      });
     }
   };
 
@@ -225,7 +220,10 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
       duration: newDuration.trim() || '10:00',
       views: finalViews,
       viewsCount: uploadType === 'device' ? 0 : 1500,
+      viewedBy: [],
       date: 'Just now',
+      createdAt: Date.now(),
+      uploadTimestamp: Date.now(),
       thumbnail: finalThumbnail,
       videoUrl:
         uploadType === 'link'
@@ -389,6 +387,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
       commentAuthor.trim() ||
       'Viewer';
 
+    const hasFanBadge = !!currentUser?.fanBadge;
     const newComment: VideoComment = {
       id: 'c-' + Date.now(),
       authorName: author,
@@ -396,6 +395,8 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
       userId: currentUser?.id,
       text: commentText.trim(),
       timestamp: 'Just now',
+      createdAt: Date.now(),
+      hasFanBadge,
     };
 
     if (onAddComment) {
@@ -585,8 +586,11 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                     {/* Metadata & Title */}
                     <div className="p-2.5 sm:p-4">
                       <div className="flex items-center justify-between gap-1 text-[9px] sm:text-[11px] text-neutral-500 font-semibold mb-1.5 sm:mb-2">
-                        <div className="flex items-center gap-1 truncate">
-                          <span>{video.date}</span>
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span className="text-orange-600 font-bold flex items-center gap-0.5">
+                            <span>🕒</span>
+                            <span>{formatUploadedTimeAgo(video.createdAt || video.uploadTimestamp || video.date)}</span>
+                          </span>
                           <span>·</span>
                           <span className="text-neutral-700 font-bold">{video.views}</span>
                         </div>
@@ -927,8 +931,15 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                           className="p-3 rounded-xl bg-neutral-50 border border-neutral-200/60 text-xs space-y-1"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-neutral-900">{c.authorName}</span>
-                            <span className="text-[10px] text-neutral-400">{c.timestamp}</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-neutral-900">{c.authorName}</span>
+                              {(c.hasFanBadge || (currentUser?.username?.toLowerCase() === c.authorName.toLowerCase() && currentUser?.fanBadge)) && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[8px] font-black uppercase shadow-2xs tracking-wide">
+                                  <span>⭐</span> Top Fan
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-neutral-400">{formatTimeAgo(c.createdAt || c.timestamp)}</span>
                           </div>
                           <p className="text-neutral-700 text-xs leading-relaxed">{c.text}</p>
                         </div>

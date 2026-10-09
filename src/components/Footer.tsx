@@ -130,7 +130,8 @@ export const Footer: React.FC = () => {
                 title="Send email to Topson Media"
               >
                 <Mail className="w-3.5 h-3.5 text-orange-500" />
-                <span>topsonkenedy@gmail.com</span>
+                <span className="sm:hidden">mail topson media</span>
+                <span className="hidden sm:inline">topsonkenedy@gmail.com</span>
               </a>
 
               <a

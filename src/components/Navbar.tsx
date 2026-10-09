@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, Menu, Sun, Moon, LogOut, ShieldCheck, Home, Film, Users, MessageSquare, Mail, ChevronRight } from 'lucide-react';
 import { User } from '../types';
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
@@ -34,10 +35,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Close mobile menu on resize to desktop
+  // Close mobile/tablet menu on resize to desktop
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 768) {
+      if (window.innerWidth >= 1024) {
         setMobileMenuOpen(false);
       }
     };
@@ -107,7 +108,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full backdrop-blur-md transition-colors duration-200 border-b border-neutral-200 bg-white/95 overflow-x-hidden">
+    <header className="sticky top-0 z-40 w-full backdrop-blur-md transition-colors duration-200 border-b border-neutral-200 bg-white/95">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex flex-row items-center justify-between gap-2 sm:gap-3 w-full">
         
         {/* Left: Brand Logo & Wordmark */}
@@ -132,8 +133,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </div>
 
-        {/* Center: Desktop Navigation Links (HIDDEN on Mobile Devices) */}
-        <nav className="hidden md:flex items-center gap-1 lg:gap-2 text-xs lg:text-sm whitespace-nowrap shrink-0">
+        {/* Center: Desktop Navigation Links (HIDDEN on Mobile & Tablet to prevent crowding, accessible via responsive menu) */}
+        <nav className="hidden lg:flex items-center gap-1 xl:gap-2 text-xs xl:text-sm whitespace-nowrap shrink-0">
           {navItems.map((item) => {
             const isActive = activeNav === item.id;
             return (
@@ -141,7 +142,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 key={item.id}
                 type="button"
                 onClick={() => handleNavSelect(item.id)}
-                className={`px-2.5 lg:px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-bold flex items-center gap-1 lg:gap-1.5 ${
+                className={`px-2.5 xl:px-3 py-1.5 rounded-lg transition-colors cursor-pointer font-bold flex items-center gap-1 xl:gap-1.5 ${
                   isActive
                     ? 'bg-neutral-900 text-white shadow-2xs'
                     : 'text-neutral-700 hover:text-neutral-950 hover:bg-neutral-100'
@@ -243,15 +244,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   )}
                 </div>
-                <div className="hidden xl:flex flex-col text-left max-w-[100px]">
-                  <span className="text-xs font-bold text-neutral-900 truncate">
-                    {currentUser.username}
+                <div className="hidden xl:flex flex-col text-left max-w-[120px]">
+                  <span className="text-xs font-bold text-neutral-900 truncate flex items-center gap-1">
+                    <span>{currentUser.username}</span>
+                    {currentUser.fanBadge && <span title="Top Fan">⭐</span>}
                   </span>
-                  {currentUser.role === 'admin' && (
+                  {currentUser.role === 'admin' ? (
                     <span className="text-[9px] uppercase tracking-wider font-extrabold text-orange-600 -mt-0.5">
                       Admin
                     </span>
-                  )}
+                  ) : currentUser.fanBadge ? (
+                    <span className="text-[9px] uppercase tracking-wider font-extrabold text-amber-600 -mt-0.5">
+                      Top Fan
+                    </span>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -276,11 +282,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Modern Sleek Hamburger Menu Icon on Mobile */}
+          {/* Modern Sleek Hamburger Menu Icon on Mobile & Tablet */}
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-1.5 sm:p-2 rounded-xl text-neutral-800 hover:text-neutral-950 hover:bg-neutral-100 transition-colors cursor-pointer active:scale-95 shrink-0"
+            className="lg:hidden p-1.5 sm:p-2 rounded-xl text-neutral-800 hover:text-neutral-950 hover:bg-neutral-100 transition-colors cursor-pointer active:scale-95 shrink-0"
             aria-label="Toggle navigation drawer"
             aria-expanded={mobileMenuOpen}
           >
@@ -295,91 +301,117 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       </div>
 
-      {/* Instant Transparent Glassmorphism Overlay Menu with Absolute Device Lock */}
-      {mobileMenuOpen && (
-        <div
-          className={`fixed top-0 left-0 w-full h-screen z-50 md:hidden flex flex-col justify-between ${
-            isDarkMode
-              ? 'bg-black/80 text-white'
-              : 'bg-white/80 text-neutral-900'
-          } backdrop-blur-lg animate-in fade-in duration-150`}
-        >
-          {/* Top Bar with Brand & Top-Right "X" (Close) Icon */}
-          <div className="w-full flex items-center justify-between px-6 pt-5 pb-2">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full overflow-hidden border border-neutral-300 bg-white shrink-0 shadow-xs">
-                <img
-                  src={TOPSON_PROFILE_IMAGE}
-                  alt="Topson Media Logo"
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover rounded-full"
-                />
+      {/* Instant Transparent Glassmorphism Slide-out Overlay on Right Side of Mobile & Tablet Viewport */}
+      {mobileMenuOpen && typeof document !== 'undefined' && createPortal(
+        <>
+          {/* Subtle click-away backdrop */}
+          <div
+            className="fixed inset-0 bg-black/30 backdrop-blur-xs z-50 lg:hidden animate-in fade-in duration-200"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Dynamic Full-Height Overlay Positioned Strictly on the RIGHT side of mobile & tablet viewport */}
+          <div
+            className={`fixed top-0 right-0 w-[75%] sm:w-[60%] md:w-[350px] max-w-[380px] h-screen z-50 lg:hidden flex flex-col justify-between ${
+              isDarkMode
+                ? 'bg-black/80 text-white'
+                : 'bg-white/80 text-neutral-900'
+            } backdrop-blur-lg shadow-2xl border-l border-neutral-200/70 dark:border-neutral-800 animate-in slide-in-from-right duration-200 overflow-y-auto`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation Menu"
+          >
+            {/* Top Bar with Brand & Top-Right "X" (Close) Icon */}
+            <div className="w-full flex items-center justify-between px-5 pt-5 pb-3 border-b border-neutral-200/50 dark:border-neutral-800">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full overflow-hidden border border-neutral-300 bg-white shrink-0 shadow-xs">
+                  <img
+                    src={TOPSON_PROFILE_IMAGE}
+                    alt="Topson Media Logo"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                </div>
+                <span className="text-xs font-black tracking-wider uppercase text-neutral-900 dark:text-white">
+                  TOPSON MEDIA
+                </span>
               </div>
-              <span className="text-sm font-black tracking-wider uppercase">
-                TOPSON MEDIA
-              </span>
+
+              {/* "X" (Close) Icon in top right corner */}
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-2 rounded-full hover:bg-neutral-500/15 transition-colors cursor-pointer active:scale-95"
+                aria-label="Close menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* "X" (Close) Icon in top right corner */}
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(false)}
-              className="p-2.5 rounded-full hover:bg-neutral-500/15 transition-colors cursor-pointer active:scale-95"
-              aria-label="Close menu"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
+            {/* Vertically Stacked Navigation Routes List with Clean, Bold Typography */}
+            <div className="flex-1 px-5 py-6 flex flex-col justify-start">
+              <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block mb-4">
+                MENU
+              </span>
+              <nav className="flex flex-col space-y-2.5 w-full">
+                {navItems.map((item) => {
+                  const isActive = activeNav === item.id;
+                  const displayLabel = item.id === 'tutorials' ? 'Tutorials' : item.label;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleNavSelect(item.id)}
+                      className={`w-full text-left py-2.5 px-3 rounded-xl text-base font-black tracking-tight transition-all duration-150 flex items-center gap-3 cursor-pointer ${
+                        isActive
+                          ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 drop-shadow-[0_0_8px_rgba(249,115,22,0.4)]'
+                          : isDarkMode
+                            ? 'text-neutral-100 hover:text-orange-400 hover:bg-neutral-800/40'
+                            : 'text-neutral-900 hover:text-orange-500 hover:bg-neutral-100/60'
+                      }`}
+                    >
+                      <span className="shrink-0">{item.icon}</span>
+                      <span>{displayLabel}</span>
+                    </button>
+                  );
+                })}
 
-          {/* Centered Navigation Routes & Signout in a Premium Tech Stack */}
-          <div className="flex-1 flex flex-col items-center justify-center space-y-7 px-6 text-center">
-            <nav className="flex flex-col items-center space-y-6">
-              {navItems.map((item) => {
-                const isActive = activeNav === item.id;
-                return (
+                {/* Admin Studio inside overlay if user is admin */}
+                {currentUser?.role === 'admin' && (
                   <button
-                    key={item.id}
                     type="button"
-                    onClick={() => handleNavSelect(item.id)}
-                    className={`text-2xl sm:text-3xl font-black tracking-tight transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2.5 ${
-                      isActive
-                        ? 'text-orange-500 drop-shadow-[0_0_12px_rgba(249,115,22,0.6)]'
+                    onClick={() => handleNavSelect('admin')}
+                    className={`w-full text-left py-2.5 px-3 rounded-xl text-base font-black tracking-tight transition-all duration-150 flex items-center gap-3 cursor-pointer ${
+                      activeNav === 'admin'
+                        ? 'bg-orange-500/10 text-orange-600'
                         : isDarkMode
-                          ? 'text-neutral-100 hover:text-orange-400 hover:drop-shadow-[0_0_12px_rgba(249,115,22,0.6)]'
-                          : 'text-neutral-900 hover:text-orange-500 hover:drop-shadow-[0_0_12px_rgba(249,115,22,0.6)]'
+                          ? 'text-neutral-100 hover:text-orange-400 hover:bg-neutral-800/40'
+                          : 'text-neutral-900 hover:text-orange-500 hover:bg-neutral-100/60'
                     }`}
                   >
-                    <span>{item.label}</span>
+                    <ShieldCheck className="w-4 h-4 text-orange-500 shrink-0" />
+                    <span>Admin Studio</span>
                   </button>
-                );
-              })}
+                )}
+              </nav>
+            </div>
 
-              {/* Admin Studio inside overlay if user is admin */}
-              {currentUser?.role === 'admin' && (
-                <button
-                  type="button"
-                  onClick={() => handleNavSelect('admin')}
-                  className={`text-xl sm:text-2xl font-black tracking-tight transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2 ${
-                    activeNav === 'admin'
-                      ? 'text-orange-500 drop-shadow-[0_0_12px_rgba(249,115,22,0.6)]'
-                      : 'text-amber-600 hover:text-orange-500 hover:drop-shadow-[0_0_12px_rgba(249,115,22,0.6)]'
-                  }`}
-                >
-                  <ShieldCheck className="w-5 h-5 text-orange-500" />
-                  <span>Admin Studio</span>
-                </button>
-              )}
-            </nav>
-
-            {/* INTEGRATE SIGNOUT BUTTON DIRECTLY AT THE BOTTOM OF THE LIST */}
-            <div className="pt-6 flex flex-col items-center gap-3">
+            {/* INTEGRATE SIGNOUT / SIGN IN BUTTON DIRECTLY AT THE BOTTOM */}
+            <div className="p-5 border-t border-neutral-200/50 dark:border-neutral-800 flex flex-col gap-3">
               {currentUser && (
-                <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
-                  Signed in as <span className="font-bold text-neutral-900 dark:text-white">{currentUser.username}</span>
+                <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 truncate flex items-center gap-1.5 flex-wrap">
+                  <span>Signed in as</span>
+                  <span className="font-bold text-neutral-900 dark:text-white">{currentUser.username}</span>
+                  {currentUser.fanBadge && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[8px] font-black uppercase shadow-xs tracking-wide">
+                      ⭐ Top Fan
+                    </span>
+                  )}
                 </div>
               )}
 
-              <div className="flex flex-row items-center justify-center gap-3">
+              <div className="flex flex-col gap-2">
                 {!currentUser ? (
                   <button
                     type="button"
@@ -387,7 +419,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       onOpenAuth('signin');
                       setMobileMenuOpen(false);
                     }}
-                    className="px-6 py-2.5 rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 text-sm font-bold shadow-sm cursor-pointer transition-all active:scale-95"
+                    className="w-full px-4 py-2.5 rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 text-sm font-bold shadow-sm cursor-pointer transition-all active:scale-95 text-center"
                   >
                     Sign In
                   </button>
@@ -398,23 +430,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                       onLogout();
                       setMobileMenuOpen(false);
                     }}
-                    className="border border-red-500/50 text-red-500 hover:bg-red-500/10 hover:border-red-500 rounded-lg px-6 py-2.5 font-bold text-sm tracking-wide transition-all inline-flex items-center gap-2 cursor-pointer shadow-sm active:scale-95"
+                    className="w-full border border-red-500/50 text-red-500 hover:bg-red-500/10 hover:border-red-500 rounded-lg px-4 py-2.5 font-bold text-sm tracking-wide transition-all inline-flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
                   >
                     <LogOut className="w-4 h-4" />
                     <span>Signout</span>
                   </button>
                 )}
               </div>
+
+              {/* Subtle Bottom Brand Watermark */}
+              <div className="text-[10px] text-center font-bold text-neutral-400 tracking-wider uppercase pt-1">
+                Topson Media · Tech Hub
+              </div>
             </div>
           </div>
-
-          {/* Subtle Bottom Brand Watermark */}
-          <div className="pb-6 text-center">
-            <span className="text-[10px] font-bold text-neutral-400 tracking-widest uppercase">
-              Topson Media · Mobile Tech Hub
-            </span>
-          </div>
-        </div>
+        </>,
+        document.body
       )}
     </header>
   );

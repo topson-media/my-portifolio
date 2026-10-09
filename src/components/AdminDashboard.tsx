@@ -51,8 +51,10 @@ import {
 import { User, VideoItem, FeedbackItem, EmailMessage, VisitorActivity, ChatMessage } from '../types';
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
 import { getYouTubeThumbnail, extractYouTubeId, fetchYouTubeVideoDetails } from '../utils/youtubeHelper';
+import { extractVideoDurationFromFile } from '../utils/videoDuration';
 import { WhatsAppBrandBadge, WhatsAppIcon } from './WhatsAppIcon';
 import { AdminChatDashboard } from './AdminChatDashboard';
+import { fetchUsersListFromDb, deleteUserFromDb, awardFanBadgeInDb } from '../services/firebase';
 
 interface AdminDashboardProps {
   currentUser: User | null;
@@ -96,7 +98,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onNavigateHome,
 }) => {
   // Navigation tabs within Admin Studio
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'chat' | 'messages' | 'reviews' | 'upload' | 'tutorials'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'chat' | 'messages' | 'reviews' | 'upload' | 'tutorials' | 'users'>('overview');
+
+  // User management state (Admin power to delete users & award fan badges)
+  const [usersList, setUsersList] = useState<User[]>([]);
+  const [usersSearch, setUsersSearch] = useState('');
+  const [userActionToast, setUserActionToast] = useState<{ message: string; type: 'success' | 'delete' } | null>(null);
+
+  useEffect(() => {
+    fetchUsersListFromDb().then((list) => {
+      setUsersList(list);
+    });
+  }, []);
+
+  const handleDeleteUser = async (userId: string, username: string) => {
+    if (!window.confirm(`Are you sure you want to delete user "${username}"? This permanently removes their account.`)) {
+      return;
+    }
+    try {
+      await deleteUserFromDb(userId);
+      setUsersList((prev) => prev.filter((u) => u.id !== userId));
+      setUserActionToast({ message: `User "${username}" was permanently deleted.`, type: 'delete' });
+      setTimeout(() => setUserActionToast(null), 4000);
+    } catch (err) {
+      console.error('Delete user error:', err);
+    }
+  };
+
+  const handleAwardFanBadge = async (userId: string, username: string) => {
+    try {
+      await awardFanBadgeInDb(userId);
+      setUsersList((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, fanBadgeOffered: true, fanBadge: false } : u))
+      );
+      setUserActionToast({
+        message: `Official Top Fan Badge awarded to "${username}"! They can accept it directly on screen.`,
+        type: 'success',
+      });
+      setTimeout(() => setUserActionToast(null), 5000);
+    } catch (err) {
+      console.error('Award badge error:', err);
+    }
+  };
 
   // Video upload state
   const [uploadType, setUploadType] = useState<'link' | 'device'>('link');
@@ -294,17 +337,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const previewUrl = URL.createObjectURL(file);
       setDeviceFilePreviewUrl(previewUrl);
 
-      // Auto-detect duration from video metadata
-      const tempVideo = document.createElement('video');
-      tempVideo.preload = 'metadata';
-      tempVideo.onloadedmetadata = () => {
-        const totalSec = Math.round(tempVideo.duration);
-        const mins = Math.floor(totalSec / 60);
-        const secs = totalSec % 60;
-        const durFormatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      // Extract and store duration using URL.createObjectURL and onloadedmetadata helper
+      extractVideoDurationFromFile(file).then((durFormatted) => {
         setVideoDuration(durFormatted);
-      };
-      tempVideo.src = previewUrl;
+      });
     }
   };
 
@@ -352,7 +388,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       duration: videoDuration.trim() || '10:00',
       views: finalViews,
       viewsCount: uploadType === 'device' ? 0 : 1500,
+      viewedBy: [],
       date: 'Just now',
+      createdAt: Date.now(),
+      uploadTimestamp: Date.now(),
       thumbnail: finalThumbnail,
       videoUrl: uploadType === 'link' ? videoLink.trim() : deviceFilePreviewUrl || '',
       sourceType: uploadType,
@@ -1031,6 +1070,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               >
                 <UploadCloud className="w-4 h-4 text-orange-500" />
                 <span>Publish Reel / Tutorial</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('users')}
+                className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+                  activeTab === 'users'
+                    ? 'bg-neutral-900 text-white shadow-sm'
+                    : 'bg-white text-neutral-600 hover:text-neutral-900 border border-neutral-200'
+                }`}
+              >
+                <Users className="w-4 h-4 text-orange-500" />
+                <span>Users & Fan Badges</span>
+                {usersList.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-neutral-200 text-neutral-900 font-bold">
+                    {usersList.length}
+                  </span>
+                )}
               </button>
             </div>
 
@@ -1828,6 +1885,220 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                 </div>
 
+              </div>
+            )}
+
+            {/* TAB: COMMUNITY USERS & FAN BADGES */}
+            {activeTab === 'users' && (
+              <div className="space-y-6 animate-in fade-in">
+                {/* Toast alert */}
+                {userActionToast && (
+                  <div
+                    className={`p-4 rounded-2xl flex items-center justify-between gap-3 text-xs sm:text-sm font-bold shadow-md animate-in slide-in-from-top-2 duration-200 ${
+                      userActionToast.type === 'delete'
+                        ? 'bg-red-50 text-red-700 border border-red-200'
+                        : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border border-amber-400'
+                    }`}
+                  >
+                    <span>{userActionToast.message}</span>
+                    <button
+                      type="button"
+                      onClick={() => setUserActionToast(null)}
+                      className="p-1 hover:opacity-75 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                {/* Section Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-black text-neutral-900 tracking-tight">
+                      User Management & Fan Badges
+                    </h3>
+                    <p className="text-xs text-neutral-600 mt-1">
+                      Manage registered accounts, track visitor engagement, and award official Top Fan badges to frequent visitors.
+                    </p>
+                  </div>
+
+                  {/* Search users */}
+                  <div className="relative w-full sm:w-64">
+                    <input
+                      type="text"
+                      value={usersSearch}
+                      onChange={(e) => setUsersSearch(e.target.value)}
+                      placeholder="Search users..."
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900"
+                    />
+                    <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-2.5 pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* Quick KPI stats */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="p-4 rounded-2xl bg-white border border-neutral-200 shadow-xs">
+                    <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">Total Users</span>
+                    <span className="text-xl sm:text-2xl font-black text-neutral-900 mt-1 block">{usersList.length}</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white border border-neutral-200 shadow-xs">
+                    <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">Top Fans Active</span>
+                    <span className="text-xl sm:text-2xl font-black text-amber-600 mt-1 block">
+                      {usersList.filter((u) => u.fanBadge).length}
+                    </span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white border border-neutral-200 shadow-xs">
+                    <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">Pending Acceptance</span>
+                    <span className="text-xl sm:text-2xl font-black text-orange-600 mt-1 block">
+                      {usersList.filter((u) => u.fanBadgeOffered && !u.fanBadge).length}
+                    </span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white border border-neutral-200 shadow-xs">
+                    <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">Loyal (3+ Visits)</span>
+                    <span className="text-xl sm:text-2xl font-black text-emerald-600 mt-1 block">
+                      {usersList.filter((u) => (u.visitsCount || 1) >= 3).length}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Users List Table / Cards */}
+                <div className="rounded-3xl bg-white border border-neutral-200 shadow-sm overflow-hidden">
+                  <div className="p-4 sm:p-5 border-b border-neutral-100 flex items-center justify-between">
+                    <span className="text-xs sm:text-sm font-bold text-neutral-900">
+                      Registered Accounts & Visitors ({usersList.length})
+                    </span>
+                    <span className="text-[11px] text-neutral-500">
+                      One-click badge award & account deletion
+                    </span>
+                  </div>
+
+                  {usersList.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-neutral-500">
+                      No registered user accounts yet. When viewers sign up or sign in, they appear here.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-neutral-100">
+                      {usersList
+                        .filter(
+                          (u) =>
+                            !usersSearch.trim() ||
+                            u.username.toLowerCase().includes(usersSearch.toLowerCase()) ||
+                            u.email.toLowerCase().includes(usersSearch.toLowerCase())
+                        )
+                        .map((u) => {
+                          const visits = u.visitsCount || 1;
+                          const isLoyal = visits >= 3;
+                          const isThisAdmin = u.role === 'admin' || u.id === 'admin-topson';
+
+                          return (
+                            <div
+                              key={u.id}
+                              className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-neutral-50/60 transition-colors"
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-full bg-neutral-900 text-white font-bold text-sm flex items-center justify-center shrink-0 border border-neutral-300">
+                                  {u.avatarUrl ? (
+                                    <img
+                                      src={u.avatarUrl}
+                                      alt={u.username}
+                                      referrerPolicy="no-referrer"
+                                      className="w-full h-full object-cover rounded-full"
+                                    />
+                                  ) : (
+                                    u.username.slice(0, 1).toUpperCase()
+                                  )}
+                                </div>
+
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-xs sm:text-sm font-bold text-neutral-900 truncate">
+                                      {u.username}
+                                    </span>
+                                    {isThisAdmin && (
+                                      <span className="px-1.5 py-0.2 rounded-full bg-orange-100 text-orange-700 text-[9px] font-bold uppercase">
+                                        Admin
+                                      </span>
+                                    )}
+                                    {u.fanBadge && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[9px] font-black uppercase shadow-2xs">
+                                        <span>⭐</span> Top Fan
+                                      </span>
+                                    )}
+                                    {u.fanBadgeOffered && !u.fanBadge && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[9px] font-bold border border-amber-300">
+                                        <span>⏳</span> Badge Offered
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-neutral-500 truncate flex items-center gap-2 mt-0.5">
+                                    <span>{u.email || 'No email specified'}</span>
+                                    <span>·</span>
+                                    <span>{u.joinedDate}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                                {/* Visit count indicator */}
+                                <div className="flex items-center gap-1.5">
+                                  <span
+                                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 ${
+                                      isLoyal
+                                        ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                                        : 'bg-neutral-100 text-neutral-700'
+                                    }`}
+                                    title={`${visits} site visits recorded`}
+                                  >
+                                    <span>{isLoyal ? '🔥' : '👁️'}</span>
+                                    <span>{visits} {visits === 1 ? 'visit' : 'visits'}</span>
+                                  </span>
+                                </div>
+
+                                {/* Award fan badge button */}
+                                {!isThisAdmin && (
+                                  <>
+                                    {!u.fanBadge && !u.fanBadgeOffered ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAwardFanBadge(u.id, u.username)}
+                                        className="h-8 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer active:scale-95"
+                                        title={
+                                          isLoyal
+                                            ? 'User visits website many times! Award official Top Fan badge'
+                                            : 'Award Top Fan badge'
+                                        }
+                                      >
+                                        <span>⭐</span>
+                                        <span>Give Fan Badge</span>
+                                      </button>
+                                    ) : u.fanBadgeOffered && !u.fanBadge ? (
+                                      <span className="text-[11px] font-bold text-amber-600 px-2 py-1 rounded-md bg-amber-50 border border-amber-200">
+                                        Offered (Pending)
+                                      </span>
+                                    ) : (
+                                      <span className="text-[11px] font-bold text-emerald-600 px-2 py-1 rounded-md bg-emerald-50 border border-emerald-200 flex items-center gap-1">
+                                        <span>⭐</span> Active Top Fan
+                                      </span>
+                                    )}
+
+                                    {/* Delete User button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteUser(u.id, u.username)}
+                                      className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                                      title={`Delete user account "${u.username}"`}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

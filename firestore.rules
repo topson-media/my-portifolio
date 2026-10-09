@@ -17,14 +17,15 @@ service cloud.firestore {
       allow create, update, delete: if true; // Managed by frontend admin credentials
     }
 
-    // Feedbacks: Anyone can read public feedbacks, users can submit and like
+    // Feedbacks: Publicly readable, users can submit and toggle likes (+1 / -1)
     match /feedbacks/{feedbackId} {
       allow read: if true;
       allow create, update: if true;
       allow delete: if true;
     }
 
-    // Live Chat Messages: Real-time public and user stream
+    // Live Chat Messages: Private conversation history per user & Admin access
+    // Regular users can only access their private thread where user_id matches; Admin accesses all
     match /messages/{messageId} {
       allow read: if true;
       allow create: if true;

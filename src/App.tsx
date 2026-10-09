@@ -43,6 +43,8 @@ import {
   verifyConfirmationEmail,
   subscribeToContactSubmissions,
   replyToContactSubmissionInDb,
+  acceptFanBadgeInDb,
+  recordUserVisitInDb,
 } from './services/firebase';
 
 export default function App() {
@@ -138,7 +140,13 @@ export default function App() {
       });
       sessionStorage.setItem('topson_visited', 'true');
     }
-  }, []);
+
+    if (currentUser?.id) {
+      recordUserVisitInDb(currentUser.id).then((count) => {
+        setCurrentUser((prev) => (prev ? { ...prev, visitsCount: count } : null));
+      });
+    }
+  }, [currentUser?.id]);
 
   // Interactive Live Chat Messages (Loaded dynamically via Firestore real-time listener)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
@@ -168,8 +176,7 @@ export default function App() {
 
     const unsubMessages = subscribeToMessages((msgs) => {
       setChatMessages(msgs);
-      localStorage.setItem('topson_chat_messages', JSON.stringify(msgs));
-    });
+    }, currentUser);
 
     const unsubContacts = subscribeToContactSubmissions((submissions) => {
       if (submissions && submissions.length > 0) {
@@ -184,7 +191,7 @@ export default function App() {
       unsubMessages();
       unsubContacts();
     };
-  }, []);
+  }, [currentUser?.id, currentUser?.role]);
 
   // Ensure dark class is never present
   useEffect(() => {
@@ -482,19 +489,35 @@ export default function App() {
     ]);
   };
 
-  // Toggle Like on Feedback Item (persisted to Firestore)
+  // Strict Single-Click Toggle Like on Feedback Item (persisted to Firestore & local state)
   const handleToggleLikeFeedback = async (feedbackId: string) => {
+    if (!currentUser) {
+      setAuthMode('signin');
+      setAuthModalOpen(true);
+      return;
+    }
+
+    const userId = currentUser.id;
     let newLikes = 0;
+    let isNowLiked = false;
+
     setFeedbacks((prev) => {
       const updated = prev.map((fb) => {
         if (fb.id === feedbackId) {
-          const currentlyLiked = !fb.userLiked;
-          const currentCount = fb.likes ?? 0;
-          newLikes = currentlyLiked ? currentCount + 1 : Math.max(0, currentCount - 1);
+          const likedBy = Array.isArray(fb.likedBy) ? fb.likedBy : [];
+          const currentlyLiked = likedBy.includes(userId) || !!fb.userLiked;
+          isNowLiked = !currentlyLiked;
+          const nextLikedBy = currentlyLiked
+            ? likedBy.filter((id) => id !== userId)
+            : [...likedBy, userId];
+          const currentCount = typeof fb.likes === 'number' ? fb.likes : 0;
+          newLikes = isNowLiked ? currentCount + 1 : Math.max(0, currentCount - 1);
+
           return {
             ...fb,
-            userLiked: currentlyLiked,
             likes: newLikes,
+            likedBy: nextLikedBy,
+            userLiked: isNowLiked,
           };
         }
         return fb;
@@ -504,7 +527,7 @@ export default function App() {
     });
 
     try {
-      await toggleLikeFeedbackInDb(feedbackId, newLikes);
+      await toggleLikeFeedbackInDb(feedbackId, userId);
     } catch (err) {
       console.warn('Firestore toggleLike fallback:', err);
     }
@@ -644,27 +667,88 @@ export default function App() {
     }
   };
 
-  // Handle user watching/playing video to increment views
+  // Handle user watching/playing video to increment views (STRICT ONE ACCOUNT ONE VIEW)
   const handleIncrementVideoViews = async (videoId: string) => {
+    let viewerId = currentUser?.id;
+    if (!viewerId) {
+      let guestDeviceId = localStorage.getItem('topson_guest_device_id');
+      if (!guestDeviceId) {
+        guestDeviceId = 'guest-' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('topson_guest_device_id', guestDeviceId);
+      }
+      viewerId = guestDeviceId;
+    }
+
+    // Check if target video already viewed by this account/device
+    const existingVid = videoList.find((v) => v.id === videoId);
+    if (existingVid && existingVid.viewedBy?.includes(viewerId)) {
+      // ONE ACCOUNT ONE VIEW: already viewed, ignore duplicate view
+      return;
+    }
+
+    // Update local state first
+    setVideoList((prev) =>
+      prev.map((vid) => {
+        if (vid.id !== videoId) return vid;
+        const viewedBy = vid.viewedBy || [];
+        if (viewedBy.includes(viewerId!)) return vid;
+        const currentCount = vid.viewsCount || 0;
+        const nextCount = currentCount + 1;
+        const formatted =
+          nextCount >= 1000 ? `${(nextCount / 1000).toFixed(1)}K views` : `${nextCount} views`;
+        return {
+          ...vid,
+          viewsCount: nextCount,
+          views: formatted,
+          viewedBy: [...viewedBy, viewerId!],
+        };
+      })
+    );
+
     try {
-      const updatedCount = await incrementVideoViewsInDb(videoId);
-      setVideoList((prev) =>
-        prev.map((vid) => {
-          if (vid.id !== videoId) return vid;
-          const formatted =
-            updatedCount >= 1000
-              ? `${(updatedCount / 1000).toFixed(1)}K views`
-              : `${updatedCount} views`;
-          return {
-            ...vid,
-            viewsCount: updatedCount,
-            views: formatted,
-          };
-        })
-      );
+      const result = await incrementVideoViewsInDb(videoId, viewerId);
+      if (result.viewed) {
+        setVideoList((prev) =>
+          prev.map((vid) => {
+            if (vid.id !== videoId) return vid;
+            const formatted =
+              result.viewsCount >= 1000
+                ? `${(result.viewsCount / 1000).toFixed(1)}K views`
+                : `${result.viewsCount} views`;
+            return {
+              ...vid,
+              viewsCount: result.viewsCount,
+              views: formatted,
+            };
+          })
+        );
+      }
     } catch (err) {
       console.warn('Firestore incrementViews fallback:', err);
     }
+  };
+
+  // User accepts the Top Fan Badge awarded by Admin
+  const handleAcceptFanBadge = async () => {
+    if (!currentUser) return;
+    const updatedUser: User = {
+      ...currentUser,
+      fanBadge: true,
+      fanBadgeOffered: false,
+    };
+    setCurrentUser(updatedUser);
+    localStorage.setItem('topson_user', JSON.stringify(updatedUser));
+
+    try {
+      await acceptFanBadgeInDb(currentUser.id);
+    } catch (err) {
+      console.warn('Firestore acceptFanBadge fallback:', err);
+    }
+
+    setVerificationToast({
+      show: true,
+      message: '⭐ Congratulations! You are now an official Top Fan. Your badge is displayed on your profile, comments, and reviews!',
+    });
   };
 
   // Handle user sending chat message (hits Firestore real-time collection)
@@ -778,9 +862,6 @@ export default function App() {
                 onExploreTutorials={() => handleNavClick('tutorials')}
               />
 
-              {/* Social Media Channels */}
-              <PlatformsSection />
-
               {/* Video Gallery Section (Tutorials) */}
               <VideoGallery
                 videos={videoList}
@@ -817,11 +898,14 @@ export default function App() {
                 onDeleteMessage={handleDeleteChatMessage}
               />
 
-              {/* GET IN TOUCH Contact Section */}
+              {/* GET IN TOUCH Contact Section (Email chatting) */}
               <ContactSection
                 onJumpToChat={() => handleNavClick('chat')}
                 onSendMessageToAdmin={handleSendMessageToAdmin}
               />
+
+              {/* CONNECT ON SOCIAL: Placed directly after email chatting as requested */}
+              <PlatformsSection />
             </div>
           ) : (
             /* ADMIN CREATOR STUDIO (Exclusively for admin account) */
@@ -850,6 +934,45 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Top Fan Badge Acceptance Banner (Awarded by Admin) */}
+      {currentUser?.fanBadgeOffered && !currentUser.fanBadge && (
+        <div className="fixed bottom-5 right-4 sm:right-6 z-50 max-w-sm w-[92%] p-4 sm:p-5 rounded-3xl bg-neutral-950 text-white shadow-2xl border-2 border-amber-400 animate-in slide-in-from-bottom-4 duration-300">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400 text-amber-400 flex items-center justify-center shrink-0 text-xl shadow-xs">
+              ⭐
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider">Top Fan Award</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              </div>
+              <h4 className="text-xs sm:text-sm font-bold text-white mt-0.5">Topson Media Fan Badge</h4>
+              <p className="text-[11px] text-neutral-300 mt-1 leading-snug">
+                Congratulations, <span className="font-bold text-white">{currentUser.username}</span>! Topson Media has awarded you an official Top Fan Badge for your activity.
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleAcceptFanBadge}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-300 hover:to-orange-400 text-neutral-950 font-black text-xs transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-1"
+                >
+                  <span>Accept Badge ⭐</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentUser((prev) => (prev ? { ...prev, fanBadgeOffered: false } : null));
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  Later
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Global Footer */}
       <Footer />

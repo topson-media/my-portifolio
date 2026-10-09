@@ -129,8 +129,8 @@ export const PlatformsSection: React.FC = () => {
           </p>
         </div>
 
-        {/* Integrated Grid: Compact & Tightly Tiled 2-col grid on Mobile, 5-col on Desktop */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3.5 lg:gap-5 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1 md:[&>*:last-child]:col-span-1">
+        {/* Integrated Grid: Small, compact cards according to device size */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-2.5 md:gap-3 lg:gap-4 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1 md:[&>*:last-child]:col-span-1">
           {platforms.map((p) => {
             const isSelected = activePlatform === p.name;
             return (
@@ -140,70 +140,43 @@ export const PlatformsSection: React.FC = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setActivePlatform(p.name)}
-                className={`group rounded-xl sm:rounded-3xl p-2.5 sm:p-5 transition-all duration-300 ease-out flex flex-col justify-between cursor-pointer relative overflow-hidden ${p.cardHoverClasses} ${
+                className={`group rounded-xl sm:rounded-2xl p-2.5 sm:p-3 md:p-3.5 lg:p-4 transition-all duration-300 ease-out flex flex-col justify-between cursor-pointer relative overflow-hidden ${p.cardHoverClasses} ${
                   isSelected
                     ? 'bg-neutral-50/90 border-2 border-neutral-900 shadow-md'
-                    : 'bg-white border border-neutral-200 shadow-xs hover:bg-neutral-50/50'
+                    : 'bg-white border border-neutral-200 shadow-2xs hover:bg-neutral-50/50'
                 }`}
               >
                 {/* Subtle gradient backdrop reflection */}
                 <div className={`absolute inset-0 bg-gradient-to-b ${p.accentGlow} pointer-events-none opacity-40 group-hover:opacity-100 transition-opacity`} />
 
-                <div className="relative z-10 space-y-2 sm:space-y-4">
-                  {/* PROFILE IMAGE + CHANNEL HEADER ABOVE PLATFORM ICON */}
-                  <div className="flex items-center justify-between pb-1.5 sm:pb-3.5 border-b border-neutral-100">
-                    <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
-                      <div className="w-6 h-6 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-white ring-2 ring-orange-500/80 shrink-0 shadow-xs bg-white group-hover:scale-105 transition-transform">
-                        <img
-                          src={TOPSON_PROFILE_IMAGE}
-                          alt="Topson Media Creator Profile"
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover rounded-full"
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[10px] sm:text-xs font-black text-neutral-900 truncate group-hover:text-orange-600 transition-colors">
-                          Topson
-                        </div>
-                        <div className="text-[8px] sm:text-[10px] text-neutral-500 font-semibold truncate flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0 animate-pulse" />
-                          <span className="hidden sm:inline">Official</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-neutral-100 group-hover:bg-neutral-900 group-hover:text-white text-neutral-500 flex items-center justify-center transition-all duration-200 shadow-2xs shrink-0">
-                      <ArrowUpRight className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                    </div>
-                  </div>
-
+                <div className="relative z-10 space-y-1 sm:space-y-2">
                   {/* PLATFORM BRAND ICON + NAME */}
-                  <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex items-center gap-2 sm:gap-2.5">
                     <div className="shrink-0">
                       {p.icon}
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-xs sm:text-base font-black text-neutral-900 group-hover:text-neutral-950 transition-colors truncate">
+                      <h3 className="text-xs sm:text-sm font-black text-neutral-900 group-hover:text-neutral-950 transition-colors truncate">
                         {p.name}
                       </h3>
-                      <p className="text-[9px] sm:text-[11px] text-neutral-500 font-semibold truncate">
+                      <p className="text-[9px] sm:text-[10px] text-neutral-500 font-semibold truncate">
                         {p.handle}
                       </p>
                     </div>
                   </div>
 
-                  {/* DESCRIPTION (Hidden on mobile to keep single-screen tile compact) */}
-                  <p className="hidden sm:block text-xs text-neutral-600 leading-relaxed font-medium line-clamp-2">
+                  {/* DESCRIPTION (Only visible on large desktop to keep card very small and short on mobile & tablet) */}
+                  <p className="hidden lg:block text-[11px] text-neutral-600 leading-relaxed font-medium line-clamp-2">
                     {p.description}
                   </p>
                 </div>
 
-                {/* BOTTOM ACTION BAR with minimalist action buttons */}
-                <div className="relative z-10 flex items-center justify-between pt-1.5 sm:pt-3.5 mt-1.5 sm:mt-3 border-t border-neutral-200/80 text-[9px] sm:text-xs font-semibold">
-                  <span className="hidden sm:inline text-[11px] text-neutral-500 group-hover:text-neutral-900 transition-colors">
-                    Join Channel
+                {/* BOTTOM ACTION BAR with minimalist action badges */}
+                <div className="relative z-10 flex items-center justify-between pt-1.5 sm:pt-2 mt-1.5 sm:mt-2 border-t border-neutral-100 sm:border-neutral-200/80 text-[8px] sm:text-[10px] font-semibold">
+                  <span className="hidden lg:inline text-[10px] text-neutral-500 group-hover:text-neutral-900 transition-colors">
+                    Join
                   </span>
-                  <span className="text-neutral-900 text-[9px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full bg-neutral-100 group-hover:bg-neutral-900 group-hover:text-white transition-all shadow-2xs ml-auto sm:ml-0">
+                  <span className="text-neutral-900 text-[8px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full bg-neutral-100 group-hover:bg-neutral-900 group-hover:text-white transition-all shadow-2xs ml-auto lg:ml-0">
                     {p.stats}
                   </span>
                 </div>

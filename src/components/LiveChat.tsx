@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Lock, CheckCircle2, Check, CheckCheck, Trash2, MoreVertical, X, AlertTriangle, ShieldCheck, MessageSquare } from 'lucide-react';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { ChatMessage, User } from '../types';
 import { TOPSON_PROFILE_IMAGE } from '../data/mockData';
 import { WhatsAppIcon } from './WhatsAppIcon';
@@ -32,23 +34,25 @@ export const LiveChat: React.FC<LiveChatProps> = ({
   isDarkMode = false,
   onToggleDarkMode,
 }) => {
-  // 1. PERSISTENT CHAT HISTORY ARRAY STATE
-  // Guarantees messages never disappear from the screen upon sending or re-rendering
+  // 1. PERSISTENT CHAT HISTORY ARRAY STATE (USER ISOLATED)
+  // Guarantees regular users only see their own private messages, separated by user ID
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>(() => {
-    const saved = localStorage.getItem('topson_chat_messages');
+    if (!currentUser) return [];
+    const storageKey = currentUser.role === 'admin'
+      ? 'topson_admin_chat_messages'
+      : `topson_chat_messages_${currentUser.id}`;
+    const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Filter out legacy mock welcome messages if clean slate
-          const filtered = parsed.filter((m) => m.id !== 'msg-welcome' && m.id !== 'msg-1');
-          return filtered;
+          return parsed.filter((m) => m.id !== 'msg-welcome' && m.id !== 'msg-1' && !m.deletedForUser);
         }
       } catch {
         // fallback
       }
     }
-    return messages ? messages.filter((m) => m.id !== 'msg-welcome' && m.id !== 'msg-1') : [];
+    return [];
   });
 
   const [inputText, setInputText] = useState('');
@@ -95,29 +99,72 @@ export const LiveChat: React.FC<LiveChatProps> = ({
     scrollToBottom();
   }, [localMessages, animatedWelcomeText]);
 
-  // Sync external incoming messages without erasing local messages
+  // 1. REWRITTEN FIRESTORE DATABASE FETCH QUERY LOGIC (USER MESSAGE ISOLATION)
+  // Regular authenticated users must ONLY be able to see their own private conversation history with Topson Media.
+  // Database logic filters messages where: where("user_id", "==", current_logged_in_user_id)
+  // The Admin account ("admin") remains the only identity authorized to access and load all open chat threads from every user.
   useEffect(() => {
-    if (messages && messages.length > 0) {
-      setLocalMessages((prev) => {
-        const incomingMap = new Map(messages.map((m) => [m.id, m]));
-        // Keep updated state from parent (e.g., if deleted for everyone or deleted for user)
-        const updated = prev
-          .map((m) => {
-            const external = incomingMap.get(m.id);
-            if (external) return { ...m, ...external };
-            return m;
-          })
-          .filter((m) => !m.deletedForUser);
-
-        // Add any brand new incoming messages
-        const existingIds = new Set(prev.map((m) => m.id));
-        const newFromProps = messages.filter((m) => !existingIds.has(m.id) && !m.deletedForUser);
-        const finalMerged = [...updated, ...newFromProps];
-        localStorage.setItem('topson_chat_messages', JSON.stringify(finalMerged));
-        return finalMerged;
-      });
+    if (!currentUser) {
+      setLocalMessages([]);
+      return;
     }
-  }, [messages]);
+
+    const isAdmin = currentUser.role === 'admin';
+    const currentUserId = currentUser.id;
+    let q;
+
+    if (isAdmin) {
+      // Admin account: authorized to access and load all open chat threads from every user
+      q = query(collection(db, 'messages'), orderBy('createdAt', 'asc'));
+    } else {
+      // Regular authenticated users: ONLY see their own private conversation history
+      // Strictly query: where("user_id", "==", current_logged_in_user_id)
+      q = query(
+        collection(db, 'messages'),
+        where('user_id', '==', currentUserId)
+      );
+    }
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const msgs: ChatMessage[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          msgs.push({
+            id: docSnap.id,
+            sender: data.sender || 'user',
+            senderName: data.senderName || 'Viewer',
+            userId: data.userId || data.user_id,
+            user_id: data.user_id || data.userId,
+            userEmail: data.userEmail,
+            targetUserId: data.targetUserId,
+            text: data.text || '',
+            timestamp: data.timestamp || '',
+            avatarUrl: data.avatarUrl,
+            isRead: !!data.isRead,
+            createdAt: data.createdAt,
+            deletedForEveryone: data.deletedForEveryone,
+            deletedForUser: data.deletedForUser,
+          } as ChatMessage);
+        });
+
+        // In-memory chronological sort to prevent index dependency
+        msgs.sort((a: any, b: any) => (a.createdAt || 0) - (b.createdAt || 0));
+
+        setLocalMessages(msgs);
+        const storageKey = isAdmin
+          ? 'topson_admin_chat_messages'
+          : `topson_chat_messages_${currentUserId}`;
+        localStorage.setItem(storageKey, JSON.stringify(msgs));
+      },
+      (error) => {
+        console.warn('Firestore user messages query fallback:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [currentUser?.id, currentUser?.role]);
 
   // 1. PERSISTENT CHAT HISTORY & REAL ADMIN/USER MESSAGING (ZERO AI BOTS)
   const handleSend = (e?: React.FormEvent | React.MouseEvent | React.KeyboardEvent, textToSend?: string) => {
@@ -135,6 +182,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
       sender: isAdmin ? 'topson' : 'user',
       senderName: isAdmin ? 'Topson Media (Admin)' : currentUser.username,
       userId: isAdmin ? undefined : currentUser.id,
+      user_id: isAdmin ? undefined : currentUser.id,
       userEmail: isAdmin ? undefined : currentUser.email,
       text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -145,7 +193,10 @@ export const LiveChat: React.FC<LiveChatProps> = ({
     // Immediately append to local chat history state so it renders permanently
     setLocalMessages((prev) => {
       const updated = [...prev, newMsg];
-      localStorage.setItem('topson_chat_messages', JSON.stringify(updated));
+      const storageKey = isAdmin
+        ? 'topson_admin_chat_messages'
+        : `topson_chat_messages_${currentUser.id}`;
+      localStorage.setItem(storageKey, JSON.stringify(updated));
       return updated;
     });
 
@@ -233,7 +284,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
             <h2 className="text-xl sm:text-2xl font-black text-neutral-900 tracking-tight leading-tight">
               Chat with me live
             </h2>
-            <p className="text-xs text-neutral-600 mt-0.5 max-w-md font-medium leading-relaxed">
+            <p className="hidden md:block text-xs text-neutral-600 mt-0.5 max-w-md font-medium leading-relaxed">
               Direct two-way messaging for phone tips, PC tweaks, and digital skills.
             </p>
           </div>

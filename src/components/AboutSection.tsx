@@ -7,7 +7,7 @@ interface AboutSectionProps {
 
 export const AboutSection: React.FC<AboutSectionProps> = ({ onExploreTutorials }) => {
   return (
-    <section id="about" className="py-16 sm:py-20 scroll-mt-20 border-t border-neutral-200 bg-white">
+    <section id="about" className="hidden md:block py-16 sm:py-20 scroll-mt-20 border-t border-neutral-200 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Kicker: Clean without underlines or numbers */}
